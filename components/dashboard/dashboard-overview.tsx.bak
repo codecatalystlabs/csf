@@ -1,0 +1,451 @@
+"use client";
+
+import {
+	Users,
+	DollarSign,
+	ArrowUpRight,
+	ArrowDownRight,
+	Briefcase,
+	Phone,
+	UserIcon,
+	BarChart3,
+	TrendingUp,
+	Target,
+	Percent,
+	ClipboardCheck,
+	Activity,
+	ChartBarIcon,
+	UserCircle,
+	UserRound,
+	Smile,
+	TrendingDown,
+	Star,
+	FileBarChart,
+	Columns,
+	Package,
+	BarChart4,
+	BarChart,
+	CheckCircle,
+	XCircle,
+	AlertTriangle,
+	Clock,
+	RefreshCwIcon,
+	Calendar,
+	Search,
+	FileText,
+	CheckSquare,
+	RefreshCw,
+} from "lucide-react";
+import React, { useEffect, useState, useCallback } from "react";
+import useSWR from "swr";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
+import {
+	ResponsiveContainer,
+	BarChart as ReChartsBarChart,
+	Bar,
+	XAxis,
+	YAxis,
+	CartesianGrid,
+	Tooltip,
+	Legend,
+	LineChart,
+	Line
+} from "recharts";
+import { PieChart, Pie, Cell, Sector } from "recharts";
+import { authFetcher } from "@/lib/api-utils";
+import { FilterBar } from "@/components/dashboard/filter-bar";
+import { LocationFilterValues } from "@/components/filters/location-filter";
+import { RecentActivities } from "@/components/dashboard/recent-activities";
+import { KpiCard } from "@/components/dashboard/kpi-card";
+import { StatusCard } from "@/components/dashboard/status-card";
+import { TrendingStocksCard } from "@/components/dashboard/trending-stocks-card";
+import { DashboardPageTitle } from "@/components/dashboard/dashboard-page-title";
+import { CircularProgressCard } from "@/components/dashboard/circular-progress-card";
+import { DateRangePicker } from "@/components/dashboard/date-range-picker";
+
+// GaugeChart component for overall satisfaction
+function GaugeChart({
+	value = 0,
+	width = 200,
+}: {
+	value?: number;
+	width?: number;
+}) {
+	// Clamp value between 0 and 100
+	const percent = Math.max(0, Math.min(100, value));
+	// Gauge is a half-circle (180deg), so value maps 0-100 to 180-0
+	const angle = 180 - percent * 1.8;
+	const colorData = [
+		{ value: 50, color: "#ef4444" }, // red (was green)
+		{ value: 30, color: "#facc15" }, // yellow
+		{ value: 20, color: "#22c55e" }, // green (was red)
+	];
+	const sumValues = colorData.reduce((a, b) => a + b.value, 0);
+	const chartValue = (percent / 100) * sumValues;
+	const activeSectorIndex = colorData
+		.map((cur, index, arr) => {
+			const curMax = [...arr].splice(0, index + 1).reduce((a, b) => ({
+				value: a.value + b.value,
+				color: b.color,
+			})).value;
+			return chartValue > curMax - cur.value && chartValue <= curMax;
+		})
+		.findIndex((cur) => cur);
+	const arrowData = [
+		{ value: chartValue, color: "#8884d8" },
+		{ value: 0, color: "#8884d8" },
+		{ value: sumValues - chartValue, color: "#8884d8" },
+	];
+	const pieProps = {
+		startAngle: 180,
+		endAngle: 0,
+		cx: width / 2,
+		cy: width / 2,
+	};
+	const pieRadius = {
+		innerRadius: (width / 2) * 0.7,
+		outerRadius: (width / 2) * 0.85,
+	};
+	const Arrow = (props: any): React.ReactElement => {
+		const { cx, cy, midAngle, outerRadius } = props;
+		const RADIAN = Math.PI / 180;
+		const sin = Math.sin(-RADIAN * midAngle);
+		const cos = Math.cos(-RADIAN * midAngle);
+		const mx = cx + (outerRadius + width * 0.03) * cos;
+		const my = cy + (outerRadius + width * 0.03) * sin;
+		return (
+			<g>
+				<circle
+					cx={cx}
+					cy={cy}
+					r={width * 0.05}
+					fill="#666"
+					stroke="none"
+				/>
+				<path
+					d={`M${cx},${cy}L${mx},${my}`}
+					strokeWidth="6"
+					stroke="#666"
+					fill="none"
+					strokeLinecap="round"
+				/>
+			</g>
+		);
+	};
+	const ActiveSectorMark = (props: any): React.ReactElement => {
+		const {
+			cx,
+			cy,
+			innerRadius,
+			outerRadius,
+			startAngle,
+			endAngle,
+			fill,
+		} = props;
+		return (
+			<g>
+				<Sector
+					cx={cx}
+					cy={cy}
+					innerRadius={innerRadius}
+					outerRadius={outerRadius * 1.1}
+					startAngle={startAngle}
+					endAngle={endAngle}
+					fill={fill}
+				/>
+			</g>
+		);
+	};
+	return (
+		<PieChart
+			width={width}
+			height={width / 2 + 20}
+		>
+			<Pie
+				activeIndex={activeSectorIndex}
+				activeShape={ActiveSectorMark}
+				data={colorData}
+				fill="#8884d8"
+				{...pieRadius}
+				{...pieProps}
+				dataKey="value"
+				isAnimationActive={false}
+			>
+				{colorData.map((entry, index) => (
+					<Cell
+						key={`cell-${index}`}
+						fill={colorData[index].color}
+					/>
+				))}
+			</Pie>
+			<Pie
+				stroke="none"
+				activeIndex={1}
+				activeShape={Arrow}
+				data={arrowData}
+				outerRadius={pieRadius.innerRadius}
+				fill="none"
+				{...pieProps}
+				dataKey="value"
+				isAnimationActive={false}
+			/>
+		</PieChart>
+	);
+}
+
+const fetcher = authFetcher;
+
+function TrendsLineChart() {
+	const { data, error, isLoading } = useSWR(
+		"http://localhost:9000/api/satisfaction_trends",
+		authFetcher
+	);
+
+	if (isLoading)
+		return (
+			<LoadingCard
+				title="Satisfaction Trends"
+				height="350px"
+			/>
+		);
+	if (error) return <div>Error loading trends data</div>;
+	if (!data) return null;
+
+	// Check if data has the expected structure before processing
+	if (
+		!data.labels ||
+		!Array.isArray(data.labels) ||
+		!data.datasets ||
+		!data.datasets[0]?.data
+	) {
+		console.error("Trends data structure is invalid:", data);
+		return (
+			<Card>
+				<CardHeader>
+					<CardTitle>Satisfaction Trends</CardTitle>
+				</CardHeader>
+				<CardContent className="h-[300px] flex items-center justify-center">
+					<p className="text-muted-foreground">
+						No trend data available
+					</p>
+				</CardContent>
+			</Card>
+		);
+	}
+
+	// Transform data for recharts
+	const chartData = data.labels.map((label: string, i: number) => ({
+		date: label,
+		value: data.datasets[0].data[i],
+	}));
+
+	return (
+		<ResponsiveContainer
+			width="100%"
+			height={250}
+		>
+			<LineChart
+				data={chartData}
+				margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+			>
+				<CartesianGrid strokeDasharray="3 3" />
+				<XAxis
+					dataKey="date"
+					fontSize={12}
+					angle={-45}
+					textAnchor="end"
+					height={60}
+				/>
+				<YAxis
+					domain={[0, 100]}
+					tickFormatter={(v) => `${v}%`}
+				/>
+				<Tooltip formatter={(v: number) => `${v}%`} />
+				<Legend />
+				<Line
+					type="monotone"
+					dataKey="value"
+					name="Satisfaction Rate (%)"
+					stroke="#4fd1c5"
+					strokeWidth={2}
+					dot={false}
+				/>
+			</LineChart>
+		</ResponsiveContainer>
+	);
+}
+
+function IndicatorsCard({
+	filter,
+}: {
+	filter: "today" | "this_month" | "cumulative";
+}) {
+	const { data, error, isLoading } = useSWR(
+		"http://localhost:9000/api/indicators",
+		fetcher
+	);
+	if (isLoading) return <div>Loading indicators...</div>;
+	if (error)
+		return <div className="text-red-500">Failed to load indicators</div>;
+	if (!data) return null;
+	return (
+		<Card className="lg:col-span-4">
+			<CardHeader>
+				<CardTitle className="text-center">Indicators</CardTitle>
+			</CardHeader>
+			<CardContent>
+				<div className="flex flex-col gap-4">
+					{Object.entries(data).map(
+						([name, values]: [string, any]) => (
+							<div
+								key={name}
+								className="flex flex-col gap-1"
+							>
+								<div className="flex justify-between items-center">
+									<span className="font-medium text-sm">
+										{name}
+									</span>
+									<span className="text-xs text-muted-foreground">
+										{values[filter]}
+									</span>
+								</div>
+								<Progress
+									value={values[filter] ?? 0}
+									className={
+										`h-2 ` +
+										(values[filter] >= 80
+											? "progress-green"
+											: values[filter] >= 50
+											? "progress-yellow"
+											: "progress-red")
+									}
+								/>
+							</div>
+						)
+					)}
+				</div>
+			</CardContent>
+		</Card>
+	);
+}
+
+// Add LoadingCard component definition
+function LoadingCard({
+	title,
+	height = "300px",
+}: {
+	title: string;
+	height?: string;
+}) {
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle>{title}</CardTitle>
+			</CardHeader>
+			<CardContent
+				className="flex items-center justify-center"
+				style={{ height }}
+			>
+				<div className="flex flex-col items-center justify-center">
+					<div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+					<p className="mt-2 text-sm text-muted-foreground">
+						Loading data...
+					</p>
+				</div>
+			</CardContent>
+		</Card>
+	);
+}
+
+export function DashboardOverview() {
+	const [filter, setFilter] = useState<
+		"today" | "this_month" | "cumulative"
+	>("today");
+	const [filters, setFilters] = useState<LocationFilterValues>({});
+	const [timePeriod, setTimePeriod] = useState<
+		"today" | "this_month" | "cumulative"
+	>("today");
+
+	// Build the query params based on filters
+	const getFilterParams = () => {
+		const params = new URLSearchParams();
+		// Add time-based filter
+		params.append("period", timePeriod);
+
+		// Add location filters if specified
+		if (filters.region) {
+			params.append("region", filters.region);
+		}
+		if (filters.district) {
+			params.append("district", filters.district);
+		}
+		if (filters.facility) {
+			params.append("facility", filters.facility);
+		}
+		return params.toString();
+	};
+
+	// Create the dashboard data endpoint with filter parameters
+	const dashboardEndpoint = `http://localhost:9000/api/dashboard_data${
+		getFilterParams() ? `?${getFilterParams()}` : ""
+	}`;
+
+	// Fetch dashboard data with filters
+	const {
+		data: dashboardData,
+		error,
+		isLoading,
+		mutate: refreshDashboard,
+	} = useSWR(dashboardEndpoint, authFetcher);
+
+	// Handle filter changes
+	const handleFilterChange = useCallback(
+		(newFilters: LocationFilterValues) => {
+			console.log("Filter changed:", newFilters);
+			setFilters(newFilters);
+		},
+		[]
+	);
+
+	// Handle time period filter
+	const handlePeriodChange = (
+		period: "today" | "this_month" | "cumulative"
+	) => {
+		setTimePeriod(period);
+		// Optional: Refresh data when time period changes
+		refreshDashboard();
+	};
+
+	const handleGenerateReport = () => {
+		// Build active filters string for the alert
+		const activeFilters = [];
+		if (filters.region)
+			activeFilters.push(
+				`Region: ${filters.region.replace(/_/g, " ")}`
+			);
+		if (filters.district)
+			activeFilters.push(
+				`District: ${filters.district.replace(/_/g, " ")}`
+			);
+		if (filters.facility)
+			activeFilters.push(
+				`Facility: ${filters.facility.replace(/_/g, " ")}`
+			);
+
+		const filterStr =
+			activeFilters.length > 0
+				? `Filters: ${activeFilters.join(", ")}`
+				: "No location filters applied";
+
+		alert(`
