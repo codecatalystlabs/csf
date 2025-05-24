@@ -8,6 +8,7 @@ import { useAuth } from "@/app/context/auth-context";
 import { DashboardMetrics } from "./dashboard-metrics";
 import { IndicatorsProgress } from "./indicators-progress";
 import { ServicePointProgress } from "./service-point-progress";
+import Image from "next/image";
 
 export function DashboardOverview() {
 	const { user } = useAuth();
@@ -15,7 +16,6 @@ export function DashboardOverview() {
 
 	const handleFilterChange = useCallback(
 		(newFilters: LocationFilterValues) => {
-			console.log("Filter changed:", newFilters);
 			setFilters(newFilters);
 		},
 		[]
@@ -24,7 +24,9 @@ export function DashboardOverview() {
 	return (
 		<div className="flex flex-col gap-4">
 			<div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-				<h1 className="text-2xl font-bold">Dashboard</h1>
+				<div className="flex items-center gap-2">
+					<h1 className="text-2xl font-bold">Home</h1>
+				</div>
 				{user && (
 					<div className="text-sm text-gray-600">
 						Logged in as: {user.username}
@@ -66,38 +68,6 @@ export function DashboardOverview() {
 				<IndicatorsProgress filters={filters} />
 				<ServicePointProgress filters={filters} />
 			</div>
-
-			{/* Additional dashboard information */}
-			<Card>
-				<CardHeader>
-					<CardTitle>Dashboard Overview</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<p className="mb-4">
-						This dashboard provides real-time insights into
-						client satisfaction and healthcare facility
-						performance.
-					</p>
-					<ul className="list-disc list-inside space-y-2">
-						<li>
-							View metrics by different time periods:
-							Today, This Month, Last Month, or Cumulative
-						</li>
-						<li>
-							Filter data by Region, District, and Facility
-							to narrow your analysis
-						</li>
-						<li>
-							Monitor key indicators like client
-							satisfaction, gender distribution, and more
-						</li>
-						<li>
-							Track potential issues such as facilities
-							requesting bribes
-						</li>
-					</ul>
-				</CardContent>
-			</Card>
 		</div>
 	);
 }

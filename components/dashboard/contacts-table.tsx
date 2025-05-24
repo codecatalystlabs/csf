@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import useSWR from "swr";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Loader } from "@/components/ui/loader";
@@ -9,6 +9,7 @@ import { ThumbsDown, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/app/context/auth-context";
 import { LocationFilterValues } from "@/components/filters/location-filter";
 import { FilterBar } from "@/components/dashboard/filter-bar";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
 	BarChart,
 	Bar,
@@ -21,7 +22,9 @@ import {
 	Legend,
 	LabelList,
 	Line,
+	ReferenceLine,
 } from "recharts";
+import Image from "next/image";
 
 // Fetcher function for the SWR hook
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
@@ -32,6 +35,11 @@ interface DissatisfactionFactor {
 	count: number;
 	percentage: number;
 	cumulative_percentage: number;
+}
+
+// Define the type for the elements in chartData
+interface ChartDataItem extends DissatisfactionFactor {
+	isTopFactor: boolean;
 }
 
 // Define the type for bribe data
@@ -289,11 +297,15 @@ export function DissatisfactionParetoChart({
 }: DissatisfactionParetoChartProps) {
 	// Get user from auth context
 	const { user } = useAuth();
+	const [timeframe, setTimeframe] = useState<string>("this_month");
 
 	// Build the endpoint URL with filters
 	const endpoint = useMemo(() => {
 		const baseUrl = `${BASE_URL}/dissatisfaction_pareto`;
 		const params = new URLSearchParams();
+
+		// Add timeframe parameter
+		params.append("timeframe", timeframe);
 
 		// If region filter is set, use that first
 		if (filters?.region) {
@@ -331,13 +343,15 @@ export function DissatisfactionParetoChart({
 			"DissatisfactionPareto Endpoint:",
 			fullEndpoint,
 			"Filters:",
-			filters
+			filters,
+			"Timeframe:",
+			timeframe
 		);
 
 		return fullEndpoint;
-	}, [filters, user?.region]);
+	}, [filters, user?.region, timeframe]);
 
-	const { data, error, isLoading } = useSWR(endpoint, fetcher);
+	const { data: apiResponse, error, isLoading } = useSWR(endpoint, fetcher);
 
 	if (isLoading)
 		return (
@@ -349,45 +363,204 @@ export function DissatisfactionParetoChart({
 			</div>
 		);
 	if (error) return <div className="text-red-500">Failed to load data</div>;
-	if (!data) return null;
+	if (!apiResponse) return null;
 
-	// Sort data by count in descending order
-	const sortedData = [...data.data].sort((a, b) => b.count - a.count);
+	// Get data for the selected timeframe
+	const data = apiResponse.data[timeframe] || [];
+	const total = apiResponse.totals[timeframe] || 0;
+
+	// Check if we have data for this timeframe
+	if (data.length === 0) {
+		return (
+			<div className="space-y-4">
+				<Card>
+					<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+						<CardTitle className="text-lg font-medium">
+							Factors contributing to client
+							dissatisfaction
+						</CardTitle>
+						<ThumbsDown className="h-5 w-5 text-red-500" />
+					</CardHeader>
+					<CardContent>
+						<div className="mb-4">
+							<Tabs
+								defaultValue={timeframe}
+								className="w-full"
+								onValueChange={(value) =>
+									setTimeframe(value)
+								}
+							>
+								<TabsList className="grid w-full grid-cols-4">
+									<TabsTrigger value="today">
+										Today
+									</TabsTrigger>
+									<TabsTrigger value="this_month">
+										This Month
+									</TabsTrigger>
+									<TabsTrigger value="last_month">
+										Last Month
+									</TabsTrigger>
+									<TabsTrigger value="cumulative">
+										All Time
+									</TabsTrigger>
+								</TabsList>
+							</Tabs>
+						</div>
+						<div className="h-[400px] flex items-center justify-center text-muted-foreground">
+							No dissatisfaction data available for this
+							time period
+						</div>
+					</CardContent>
+				</Card>
+			</div>
+		);
+	}
 
 	// Find the threshold for 80% cumulative
-	const thresholdIndex = sortedData.findIndex(
-		(item) => item.cumulative_percentage > 80
+	const thresholdIndex = data.findIndex(
+		(item: DissatisfactionFactor) => item.cumulative_percentage > 80
 	);
 
 	// Transform data for recharts - include both count and cumulative data
-	const chartData = sortedData.map((item, index) => ({
-		factor: item.factor,
-		count: item.count,
-		percentage: item.percentage,
-		cumulative: item.cumulative_percentage,
-		isTopFactor: index <= thresholdIndex,
-	}));
+	const chartData: ChartDataItem[] = data.map(
+		(item: DissatisfactionFactor, index: number) => ({
+			factor: item.factor,
+			count: item.count,
+			percentage: item.percentage,
+			cumulative: item.cumulative_percentage,
+			isTopFactor: index <= thresholdIndex,
+		})
+	);
 
-	// Color palette for dissatisfaction factors
-	const palette = [
-		"#ef4444", // red
-		"#f87171", // lighter red
-		"#fb7185", // rose
-		"#fda4af", // lighter rose
-		"#fecdd3", // lightest rose
-	];
+	// Custom label for percentage with background
+	const renderCustomBarLabel = (props: any) => {
+		const { x, y, width, value, payload } = props; // height is not reliable here for individual segments.
+
+		// Add a check for payload
+		if (
+			!payload ||
+			value === undefined ||
+			value === null ||
+			!payload.isTopFactor
+		) {
+			return null;
+		}
+
+		// Use a fixed height or calculate based on bar's total height if needed
+		// For simplicity, let's assume a consistent visual placement.
+
+		const labelText =
+			typeof value === "number"
+				? `${Math.round(value)}%`
+				: `${value}%`;
+
+		// Positioning logic for the label
+		const textX = x + width / 2;
+		// Position towards the bottom of where the bar segment would be.
+		// This might need adjustment depending on how Recharts provides y for stacked/grouped charts.
+		// For a simple bar, y is the top of the bar.
+		// Let's try to place it ~70-80% down from the top of the bar, assuming y is the bar top.
+		// The `height` prop on `renderCustomBarLabel` refers to the entire Y-axis space, not the bar height.
+		// We need to be careful with positioning. Let's use a fixed offset from the bar top for now.
+		const labelYOffset = 30; // pixels from the top of the bar, adjust as needed
+		let textY = y + labelYOffset;
+
+		// A more robust way to get bar height if not directly available:
+		// It would involve knowing the y-axis scale and the data value.
+		// For now, we'll rely on relative positioning or fixed offsets.
+		// The image shows labels quite low on the bars.
+		// Let's try to guess based on bar height. If barSize is 60, maybe y + 40?
+
+		// A simpler approach if `height` refers to the bar segment height (often it does for <Cell> context):
+		// const textY = y + height * 0.75; // This is ideal if height is segment height
+
+		// Given the context, `y` is the top of the bar, `height` could be the axis height.
+		// The percentage labels in the image are placed relatively low.
+		// Let's try to calculate based on bar's actual visual height which is related to `barSize` (60)
+		// The actual rendered bar height corresponds to its value on the Y-axis.
+		// We'll position it from the *top* of the bar.
+
+		const barTopY = y;
+		const valueAlongYAxis = payload.count; // The value that determines bar height
+		// This is complex to calculate exactly without y-axis scale.
+		// For now, let's use a simpler fixed offset from top of bar, or relative to bar width as a proxy for size
+		textY = barTopY + 40; // Try a fixed offset and adjust
+		if (width < 40) {
+			// For very narrow bars, move label up
+			textY = barTopY + 20;
+		}
+
+		// Estimate text width for background rect
+		const estTextWidth = labelText.length * 7; // approx 7px per char
+		const rectWidth = estTextWidth + 10;
+		const rectHeight = 20;
+
+		return (
+			<g>
+				<rect
+					x={textX - rectWidth / 2}
+					y={textY - rectHeight / 2}
+					width={rectWidth}
+					height={rectHeight}
+					fill="rgba(255, 255, 255, 0.9)"
+					rx="3"
+					ry="3"
+				/>
+				<text
+					x={textX}
+					y={textY}
+					fill="#000000"
+					textAnchor="middle"
+					dominantBaseline="middle"
+					fontSize="11"
+					fontWeight="bold"
+				>
+					{labelText}
+				</text>
+			</g>
+		);
+	};
 
 	return (
 		<div className="space-y-4">
 			<Card>
 				<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-					<CardTitle className="text-lg font-medium">
+					<CardTitle className="text-xl font-medium text-center w-full">
 						Factors contributing to 80% of client
 						dissatisfaction
 					</CardTitle>
-					<ThumbsDown className="h-5 w-5 text-red-500" />
+					<Image
+						src="https://res.cloudinary.com/dacjwtf69/image/upload/v1747980762/flag_vykum0.jpg"
+						alt="Uganda Flag"
+						width={30}
+						height={20}
+					/>
 				</CardHeader>
 				<CardContent>
+					<div className="mb-4">
+						<Tabs
+							defaultValue={timeframe}
+							className="w-full"
+							onValueChange={(value) =>
+								setTimeframe(value)
+							}
+						>
+							<TabsList className="grid w-full grid-cols-4">
+								<TabsTrigger value="today">
+									Today
+								</TabsTrigger>
+								<TabsTrigger value="this_month">
+									This Month
+								</TabsTrigger>
+								<TabsTrigger value="last_month">
+									Last Month
+								</TabsTrigger>
+								<TabsTrigger value="cumulative">
+									All Time
+								</TabsTrigger>
+							</TabsList>
+						</Tabs>
+					</div>
 					<div className="h-[500px] mt-4">
 						<ResponsiveContainer
 							width="100%"
@@ -396,17 +569,20 @@ export function DissatisfactionParetoChart({
 							<BarChart
 								data={chartData}
 								margin={{
-									top: 20,
+									top: 30,
 									right: 30,
 									left: 20,
 									bottom: 100,
 								}}
-								barSize={40}
-								barGap={8}
+								barSize={60}
+								barGap={0}
 							>
 								<CartesianGrid
 									strokeDasharray="3 3"
 									vertical={true}
+									horizontal={true}
+									stroke="#e5e7eb"
+									strokeWidth={0.5}
 								/>
 								<XAxis
 									dataKey="factor"
@@ -482,13 +658,6 @@ export function DissatisfactionParetoChart({
 										fill: "rgba(0, 0, 0, 0.05)",
 									}}
 								/>
-								<Legend
-									verticalAlign="top"
-									align="right"
-									wrapperStyle={{
-										paddingBottom: "10px",
-									}}
-								/>
 								{/* Bar chart for factor counts */}
 								<Bar
 									yAxisId="left"
@@ -496,16 +665,21 @@ export function DissatisfactionParetoChart({
 									name="Number of Cases"
 									animationDuration={1000}
 								>
-									{chartData.map((entry, index) => (
-										<Cell
-											key={`cell-${index}`}
-											fill={
-												entry.isTopFactor
-													? "#ef4444" // All red bars for top factors
-													: "#3b82f6" // Blue for others
-											}
-										/>
-									))}
+									{chartData.map(
+										(
+											entry: ChartDataItem,
+											index: number
+										) => (
+											<Cell
+												key={`cell-${index}`}
+												fill={
+													entry.isTopFactor
+														? "#ff0000" // Bright red for top factors
+														: "#3b82f6" // Blue for others
+												}
+											/>
+										)
+									)}
 									<LabelList
 										dataKey="count"
 										position="top"
@@ -515,15 +689,20 @@ export function DissatisfactionParetoChart({
 											fontWeight: "bold",
 										}}
 									/>
+									{/* Replace old percentage LabelList with custom one */}
+									<LabelList
+										dataKey="percentage"
+										content={renderCustomBarLabel}
+									/>
 								</Bar>
 								{/* Line for cumulative percentage */}
 								<Line
 									yAxisId="right"
 									type="monotone"
 									dataKey="cumulative"
-									stroke="#991b1b"
+									stroke="#800000"
 									strokeWidth={2}
-									dot={{ fill: "#991b1b", r: 4 }}
+									dot={{ fill: "#800000", r: 4 }}
 									activeDot={{ r: 6 }}
 									name="Cumulative %"
 								>
@@ -532,17 +711,63 @@ export function DissatisfactionParetoChart({
 										position="top"
 										formatter={(value: any) =>
 											typeof value === "number"
-												? `${value.toFixed(
-														0
+												? `${Math.round(
+														value
 												  )}%`
 												: `${value}%`
 										}
 										style={{
-											fontSize: 10,
-											fill: "#991b1b",
+											fontSize: 11,
+											fill: "#800000",
+											fontWeight: "bold",
 										}}
 									/>
 								</Line>
+								{/* Reference lines for important thresholds */}
+								{/* Y-axis reference lines (horizontal) */}
+								{[
+									0, 10, 20, 30, 40, 50, 60, 70, 80,
+									90, 100,
+								].map((value) => (
+									<ReferenceLine
+										key={`hline-${value}`}
+										y={value}
+										yAxisId="right"
+										stroke={
+											value === 80
+												? "#dc2626"
+												: "#9ca3af"
+										}
+										strokeWidth={
+											value === 80 ? 1.5 : 1
+										}
+										strokeDasharray={
+											value === 80
+												? "3 3"
+												: "5 5"
+										}
+										label={
+											value % 20 === 0
+												? {
+														value: `${value}%`,
+														position:
+															"right",
+														fill:
+															value ===
+															80
+																? "#dc2626"
+																: "#6b7280",
+														fontSize: 10,
+														fontWeight:
+															value ===
+															80
+																? "bold"
+																: "normal",
+												  }
+												: undefined // Changed from null to undefined
+										}
+									/>
+								))}
 							</BarChart>
 						</ResponsiveContainer>
 					</div>

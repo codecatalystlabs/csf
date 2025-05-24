@@ -10,9 +10,7 @@ import {
 import { BASE_URL } from "@/lib/api-config";
 
 export interface FilterBarProps {
-	// Allow overriding the restriction behavior
 	restrictToUserRegion?: boolean;
-	// Add callback for parent components to receive filter changes
 	onFilterChange?: (filters: LocationFilterValues) => void;
 }
 

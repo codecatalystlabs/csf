@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useSidebar } from "@/components/dashboard/sidebar-provider";
 import { useAuth } from "@/app/context/auth-context";
+import Image from "next/image";
 
 export function DashboardHeader() {
 	const { toggle, toggleCollapse, isCollapsed } = useSidebar();
@@ -53,21 +54,13 @@ export function DashboardHeader() {
 					href="/dashboard"
 					className="flex items-center gap-2 font-semibold"
 				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						strokeWidth="2"
-						strokeLinecap="round"
-						strokeLinejoin="round"
-						className="h-6 w-6"
-					>
-						<path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3" />
-					</svg>
-					<span className="hidden md:inline-block">
-						CSF Admin Dashboard
-					</span>
+					<Image
+						src="https://res.cloudinary.com/dacjwtf69/image/upload/v1747973562/mohlogo_zkpnbl.png"
+						alt="Logo"
+						width={50}
+						height={50}
+					/>
+					<span className="hidden md:inline-block">CSF</span>
 				</Link>
 				<span className="text-lg font-semibold md:hidden">
 					{getPageTitle()}
@@ -90,6 +83,12 @@ export function DashboardHeader() {
 						)}
 					</Button>
 				</div>
+				<Image
+					src="https://res.cloudinary.com/dacjwtf69/image/upload/v1747980762/flag_vykum0.jpg"
+					alt="Uganda Flag"
+					width={70}
+					height={70}
+				/>
 			</div>
 			<div className="ml-auto flex items-center gap-2 md:gap-4">
 				<form className="hidden md:block">

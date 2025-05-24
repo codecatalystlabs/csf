@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/pagination";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 interface SatisfactionData {
 	meta_instance_id: string;
@@ -57,25 +58,80 @@ interface SatisfactionData {
 	system_submission_datession_date: string;
 }
 
+type TimeFilterType =
+	| "today"
+	| "this_month"
+	| "last_month"
+	| "current_quarter"
+	| "previous_quarter"
+	| "this_year";
+
+interface LocationFilterValuesWithDates extends LocationFilterValues {
+	startDate: string | undefined;
+	endDate: string | undefined;
+	startYear: number | undefined;
+	endYear: number | undefined;
+	timeFilter: TimeFilterType;
+}
+
+interface ApiPagination {
+	current_page: number;
+	per_page: number;
+	total_records: number;
+	total_pages: number;
+	has_next_page: boolean;
+	has_previous_page: boolean;
+}
+
+interface ApiFiltersApplied {
+	region: string | null;
+	district: string | null;
+	facility: string | null;
+	date_from: string | null;
+	date_to: string | null;
+	time_filter: TimeFilterType;
+	start_date: string | null;
+	end_date: string | null;
+	page: number;
+	per_page: number;
+}
+
 interface ApiResponse {
 	status: string;
-	total: number;
-	page: number;
-	limit: number;
-	total_pages: number;
-	data: SatisfactionData[];
+	filters_applied: ApiFiltersApplied;
+	data: {
+		time_filter: TimeFilterType;
+		pagination: ApiPagination;
+		data: SatisfactionData[];
+	};
 }
 
 const PAGE_SIZE = 20;
 
+interface FilterBarProps {
+	restrictToUserRegion?: boolean;
+	onFilterChange: (filters: LocationFilterValuesWithDates) => void;
+}
+
 export function AllSatisfactionDataTable() {
 	const { user } = useAuth();
-	const [filters, setFilters] = useState<LocationFilterValues>({});
+	const [filters, setFilters] = useState<LocationFilterValuesWithDates>({
+		region: "",
+		district: "",
+		facility: "",
+		startDate: undefined,
+		endDate: undefined,
+		startYear: undefined,
+		endYear: undefined,
+		timeFilter: "this_year",
+	});
 	const [currentPage, setCurrentPage] = useState<number>(1);
 	const [allData, setAllData] = useState<SatisfactionData[]>([]);
 	const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
 	const [hasMore, setHasMore] = useState<boolean>(true);
 	const [totalPages, setTotalPages] = useState<number>(1);
+	const [activeTimeFilter, setActiveTimeFilter] =
+		useState<TimeFilterType>("this_year");
 	const loaderRef = useRef<HTMLDivElement>(null);
 
 	// Reset to page 1 and clear data when filters change
@@ -86,28 +142,44 @@ export function AllSatisfactionDataTable() {
 		setTotalPages(1);
 	}, [filters]);
 
-	// Track page changes
-	useEffect(() => {
-		console.log("Current page changed to:", currentPage);
-	}, [currentPage]);
-
 	const handleFilterChange = useCallback(
-		(newFilters: LocationFilterValues) => {
+		(newFilters: LocationFilterValuesWithDates) => {
 			console.log("Filter changed in all data table:", newFilters);
 			setFilters(newFilters);
 		},
 		[]
 	);
 
-	// Build the endpoint URL with filters
+	const handleTimeFilterClick = useCallback(
+		(period: TimeFilterType) => {
+			setActiveTimeFilter(period);
+			handleFilterChange({ ...filters, timeFilter: period });
+		},
+		[filters, handleFilterChange]
+	);
+
+	const handleFilterBarChange = useCallback(
+		(baseFilters: LocationFilterValues) => {
+			const newFilters: LocationFilterValuesWithDates = {
+				...baseFilters,
+				startDate: filters.startDate,
+				endDate: filters.endDate,
+				startYear: filters.startYear,
+				endYear: filters.endYear,
+				timeFilter: filters.timeFilter,
+			};
+			handleFilterChange(newFilters);
+		},
+		[filters, handleFilterChange]
+	);
+
 	const buildEndpoint = useCallback(
 		(page: number) => {
 			const baseUrl = `${BASE_URL}/all_data`;
 			const params = new URLSearchParams();
 
-			// Add pagination parameters
+			// Add page parameter
 			params.append("page", page.toString());
-			params.append("limit", PAGE_SIZE.toString());
 
 			// If region filter is set, use that first
 			if (filters?.region) {
@@ -128,11 +200,17 @@ export function AllSatisfactionDataTable() {
 				params.append("facility", filters.facility);
 			}
 
-			// Set role parameter based on user's region
-			if (user?.region) {
-				params.append("role", "region");
-			} else {
-				params.append("role", "national");
+			// Add time filter
+			if (filters?.timeFilter) {
+				params.append("time_filter", filters.timeFilter);
+			}
+
+			// Add date range if provided
+			if (filters?.startDate) {
+				params.append("date_from", filters.startDate);
+			}
+			if (filters?.endDate) {
+				params.append("date_to", filters.endDate);
 			}
 
 			const queryString = params.toString();
@@ -147,170 +225,45 @@ export function AllSatisfactionDataTable() {
 		[filters, user?.region]
 	);
 
-	const endpoint = useMemo(
-		() => buildEndpoint(currentPage),
-		[buildEndpoint, currentPage]
-	);
-
-	const { data, error, isLoading } = useSWR<ApiResponse>(
-		`${endpoint}_page${currentPage}`, // Add page to the key to ensure refetching
-		() => authFetcher(endpoint),
+	const { data, error, isLoading, mutate } = useSWR<ApiResponse>(
+		buildEndpoint(currentPage),
+		authFetcher,
 		{
-			dedupingInterval: 0, // Disable deduping to ensure we always fetch fresh data
-			revalidateOnFocus: false, // Don't revalidate on focus
-			shouldRetryOnError: true, // Retry on error
+			dedupingInterval: 0,
+			revalidateOnFocus: false,
+			shouldRetryOnError: true,
 			onSuccess: (data) => {
 				console.log(
 					"Successfully fetched page",
-					currentPage,
+					data.data.pagination.current_page,
 					"with",
-					data.data?.length,
-					"items"
+					data.data.data.length,
+					"items. Total records:",
+					data.data.pagination.total_records
 				);
 			},
 			onError: (err) => {
-				console.error(
-					"Error fetching data for page",
-					currentPage,
-					err
-				);
-				setIsLoadingMore(false);
+				console.error("Error fetching data:", err);
 			},
 		}
 	);
 
-	// Manual fetch function for the Load More button
-	const fetchNextPage = useCallback(
-		async (page: number) => {
-			try {
-				setIsLoadingMore(true);
-				console.log("Manually fetching page", page);
-
-				const endpoint = buildEndpoint(page);
-				const response = await authFetcher(endpoint);
-
-				console.log("Manual fetch response:", response);
-
-				if (response && response.data) {
-					setAllData((prev) => {
-						const newData = [...prev, ...response.data];
-						console.log(
-							`Manually added ${response.data.length} items. Total now: ${newData.length}`
-						);
-						return newData;
-					});
-
-					setTotalPages(response.total_pages);
-					setHasMore(page < response.total_pages);
-				}
-			} catch (err) {
-				console.error("Error in manual fetch:", err);
-			} finally {
-				setIsLoadingMore(false);
-			}
-		},
-		[buildEndpoint]
-	);
-
-	// Add debug logging for pagination data
+	// Update data processing to handle the new response format
 	useEffect(() => {
-		if (data) {
-			console.log("Pagination data:", {
-				page: data.page,
-				total_pages: data.total_pages,
-				total: data.total,
-				limit: data.limit,
-				currentDataLength: data.data?.length || 0,
-				allDataLength: allData.length,
-			});
-
-			// Store total pages
-			setTotalPages(data.total_pages);
-
-			// Append new data to existing data
-			if (data.data?.length) {
-				setAllData((prev) => {
-					// If we're on page 1, replace all data
-					if (data.page === 1) {
-						return [...data.data];
-					}
-					// Otherwise append new data
-					const newData = [...prev, ...data.data];
-					console.log(
-						`Added ${data.data.length} items. Total now: ${newData.length}`
-					);
-					return newData;
-				});
-			}
-
-			// Check if we've reached the end
-			const reachedEnd = data.page >= data.total_pages;
-			console.log(
-				`Has more data: ${!reachedEnd} (page ${data.page} of ${
-					data.total_pages
-				})`
-			);
-			setHasMore(!reachedEnd);
-			setIsLoadingMore(false);
+		if (data?.data) {
+			setAllData(data.data.data);
+			setHasMore(data.data.pagination.has_next_page);
+			setTotalPages(data.data.pagination.total_pages);
+			setCurrentPage(data.data.pagination.current_page);
 		}
 	}, [data]);
 
-	// Function to load more data
-	const loadMoreData = useCallback(() => {
-		if (hasMore && !isLoadingMore && currentPage < totalPages) {
-			console.log("Manually loading more data...");
-			setIsLoadingMore(true);
-			setCurrentPage((prev) => prev + 1);
-		} else {
-			console.log("Cannot load more:", {
-				hasMore,
-				isLoadingMore,
-				currentPage,
-				totalPages,
-			});
-		}
-	}, [hasMore, isLoadingMore, currentPage, totalPages]);
-
-	// Set up intersection observer for infinite scroll
-	useEffect(() => {
-		const observer = new IntersectionObserver(
-			(entries) => {
-				const target = entries[0];
-				if (
-					target.isIntersecting &&
-					hasMore &&
-					!isLoadingMore &&
-					!isLoading &&
-					currentPage < totalPages
-				) {
-					console.log("Loader is visible, loading more data...");
-					loadMoreData();
-				}
-			},
-			{
-				root: null,
-				rootMargin: "200px", // Load earlier, before the user reaches the very bottom
-				threshold: 0.1,
-			}
-		);
-
-		if (loaderRef.current) {
-			observer.observe(loaderRef.current);
-		}
-
-		return () => {
-			if (loaderRef.current) {
-				observer.unobserve(loaderRef.current);
-			}
-		};
-	}, [
-		hasMore,
-		isLoadingMore,
-		isLoading,
-		currentPage,
-		totalPages,
-		loadMoreData,
-	]);
+	// Update pagination handling
+	const handlePageChange = useCallback((newPage: number) => {
+		setCurrentPage(newPage);
+		// Scroll to top of the table
+		window.scrollTo({ top: 0, behavior: "smooth" });
+	}, []);
 
 	const formatDate = (dateString: string) => {
 		return new Date(dateString).toLocaleDateString();
@@ -338,11 +291,89 @@ export function AllSatisfactionDataTable() {
 		<div className="space-y-4">
 			<FilterBar
 				restrictToUserRegion={true}
-				onFilterChange={handleFilterChange}
+				onFilterChange={handleFilterBarChange}
 			/>
 
+			{/* Quick Time Filters */}
+			<div className="flex flex-wrap items-center gap-2 mb-4">
+				<span className="text-sm font-medium">Time Period:</span>
+				<Button
+					variant={
+						activeTimeFilter === "today"
+							? "default"
+							: "outline"
+					}
+					size="sm"
+					onClick={() => handleTimeFilterClick("today")}
+				>
+					Today
+				</Button>
+				<Button
+					variant={
+						activeTimeFilter === "this_month"
+							? "default"
+							: "outline"
+					}
+					size="sm"
+					onClick={() => handleTimeFilterClick("this_month")}
+				>
+					This Month
+				</Button>
+				<Button
+					variant={
+						activeTimeFilter === "last_month"
+							? "default"
+							: "outline"
+					}
+					size="sm"
+					onClick={() => handleTimeFilterClick("last_month")}
+				>
+					Last Month
+				</Button>
+				<Button
+					variant={
+						activeTimeFilter === "current_quarter"
+							? "default"
+							: "outline"
+					}
+					size="sm"
+					onClick={() =>
+						handleTimeFilterClick("current_quarter")
+					}
+				>
+					Current Quarter
+				</Button>
+				<Button
+					variant={
+						activeTimeFilter === "previous_quarter"
+							? "default"
+							: "outline"
+					}
+					size="sm"
+					onClick={() =>
+						handleTimeFilterClick("previous_quarter")
+					}
+				>
+					Previous Quarter
+				</Button>
+				<Button
+					variant={
+						activeTimeFilter === "this_year"
+							? "default"
+							: "outline"
+					}
+					size="sm"
+					onClick={() => handleTimeFilterClick("this_year")}
+				>
+					This Year
+				</Button>
+			</div>
+
 			{/* Display active filters */}
-			{(filters.region || filters.district || filters.facility) && (
+			{(filters.region ||
+				filters.district ||
+				filters.facility ||
+				filters.timeFilter) && (
 				<div className="p-2 border rounded-md bg-blue-50 text-blue-700 text-sm mb-4">
 					<strong>Filters applied:</strong>
 					{filters.region &&
@@ -357,15 +388,20 @@ export function AllSatisfactionDataTable() {
 							/_/g,
 							" "
 						)}`}
+					{filters.timeFilter &&
+						` | Time: ${filters.timeFilter.replace(
+							/_/g,
+							" "
+						)}`}
 				</div>
 			)}
 
 			<Card>
 				<CardHeader>
-					<CardTitle>Satisfaction Survey Responses</CardTitle>
+					<CardTitle>Client Feedback Responses</CardTitle>
 				</CardHeader>
 				<CardContent>
-					{isLoading && currentPage === 1 ? (
+					{isLoading ? (
 						<div className="h-96 flex items-center justify-center">
 							<Loader
 								size="lg"
@@ -373,236 +409,320 @@ export function AllSatisfactionDataTable() {
 							/>
 						</div>
 					) : error ? (
-						<div className="text-red-500">
-							Error loading data
+						<div className="text-center text-red-500">
+							Error loading data. Please try again.
 						</div>
-					) : !data || allData.length === 0 ? (
-						<div>No data available</div>
+					) : !data?.data?.data ||
+					  data.data.data.length === 0 ? (
+						<div className="text-center text-muted-foreground">
+							No data available for the selected time
+							period
+						</div>
 					) : (
-						<>
-							<div className="text-sm text-muted-foreground mb-4">
-								Showing {allData.length} of {data.total}{" "}
-								total records
+						<div className="space-y-4">
+							<div className="text-sm text-muted-foreground">
+								Showing {data.data.data.length} of{" "}
+								{data.data.pagination.total_records}{" "}
+								records
+								{activeTimeFilter !== "this_year" &&
+									` for ${activeTimeFilter.replace(
+										/_/g,
+										" "
+									)}`}
 							</div>
 
-							<div className="rounded-md border overflow-hidden mb-4">
-								<div className="overflow-x-auto">
-									<Table>
-										<TableHeader>
-											<TableRow>
-												<TableHead>
-													Date
-												</TableHead>
-												<TableHead>
-													Location
-												</TableHead>
-												<TableHead>
-													Service Point
-												</TableHead>
-												<TableHead>
-													Demographic
-												</TableHead>
-												<TableHead>
-													Satisfaction
-												</TableHead>
-												<TableHead>
-													Key Metrics
-												</TableHead>
-												<TableHead>
-													Comments
-												</TableHead>
-											</TableRow>
-										</TableHeader>
-										<TableBody>
-											{allData.length > 0 ? (
-												allData.map(
-													(item) => (
-														<TableRow
-															key={
-																item.meta_instance_id
-															}
-														>
-															<TableCell className="whitespace-nowrap">
-																{formatDate(
-																	item.system_submission_date
-																)}
-															</TableCell>
-															<TableCell className="whitespace-nowrap">
-																<div>
-																	{item.facility.replace(
-																		/_/g,
-																		" "
-																	)}
-																</div>
-																<div className="text-xs text-muted-foreground">
-																	{item.district.replace(
-																		/_/g,
-																		" "
-																	)}{" "}
-																	|{" "}
-																	{item.hlevel.replace(
-																		/_/g,
-																		" "
-																	)}
-																</div>
-															</TableCell>
-															<TableCell className="whitespace-nowrap">
-																{formatServicePoint(
-																	item.servicepoint,
-																	item.servicepoint_others
-																)}
-															</TableCell>
-															<TableCell className="whitespace-nowrap">
-																{
-																	item.demo_age
-																}{" "}
-																yrs
-																|{" "}
-																{
-																	item.demo_gender
-																}
-															</TableCell>
-															<TableCell>
-																<Badge
-																	variant={
-																		item.satifisaction ===
-																		"Yes"
-																			? "default"
-																			: "destructive"
-																	}
-																	className="rounded-sm"
-																>
-																	{item.satifisaction ===
-																	"Yes"
-																		? "Satisfied"
-																		: "Not satisfied"}
-																</Badge>
-															</TableCell>
-															<TableCell>
-																<div className="flex gap-1 flex-wrap">
-																	<Badge
-																		className={`rounded-sm ${getScoreColor(
-																			item.cleanliness
-																		)}`}
-																	>
-																		Cleanliness:{" "}
-																		{
-																			item.cleanliness
-																		}
-																	</Badge>
-																	<Badge
-																		className={`rounded-sm ${getScoreColor(
-																			item.privacy
-																		)}`}
-																	>
-																		Privacy:{" "}
-																		{
-																			item.privacy
-																		}
-																	</Badge>
-																	<Badge
-																		className={`rounded-sm ${getScoreColor(
-																			item.respect
-																		)}`}
-																	>
-																		Respect:{" "}
-																		{
-																			item.respect
-																		}
-																	</Badge>
-																</div>
-															</TableCell>
-															<TableCell className="max-w-[200px] truncate">
-																{item.comments ||
-																	"No comments"}
-															</TableCell>
-														</TableRow>
-													)
-												)
-											) : (
-												<TableRow>
-													<TableCell
-														colSpan={
-															7
+							<div className="rounded-md border">
+								<Table>
+									<TableHeader>
+										<TableRow>
+											<TableHead>
+												Date
+											</TableHead>
+											<TableHead>
+												Location
+											</TableHead>
+											<TableHead>
+												Service Point
+											</TableHead>
+											<TableHead>
+												Demographic
+											</TableHead>
+											<TableHead>
+												Satisfaction
+											</TableHead>
+											<TableHead>
+												Key Metrics
+											</TableHead>
+											<TableHead>
+												Comments
+											</TableHead>
+										</TableRow>
+									</TableHeader>
+									<TableBody>
+										{data.data.data.map(
+											(item) => (
+												<TableRow
+													key={
+														item.meta_instance_id
+													}
+												>
+													<TableCell className="whitespace-nowrap">
+														{formatDate(
+															item.system_submission_date
+														)}
+													</TableCell>
+													<TableCell className="whitespace-nowrap">
+														<div>
+															{item.facility.replace(
+																/_/g,
+																" "
+															)}
+														</div>
+														<div className="text-xs text-muted-foreground">
+															{item.district.replace(
+																/_/g,
+																" "
+															)}{" "}
+															|{" "}
+															{item.hlevel.replace(
+																/_/g,
+																" "
+															)}
+														</div>
+													</TableCell>
+													<TableCell className="whitespace-nowrap">
+														{formatServicePoint(
+															item.servicepoint,
+															item.servicepoint_others
+														)}
+													</TableCell>
+													<TableCell className="whitespace-nowrap">
+														{
+															item.demo_age
+														}{" "}
+														yrs |{" "}
+														{
+															item.demo_gender
 														}
-														className="text-center py-4"
-													>
-														No data
-														available
+													</TableCell>
+													<TableCell>
+														<Badge
+															variant={
+																item.satifisaction ===
+																"Yes"
+																	? "default"
+																	: "destructive"
+															}
+															className="rounded-sm"
+														>
+															{item.satifisaction ===
+															"Yes"
+																? "Satisfied"
+																: "Not satisfied"}
+														</Badge>
+													</TableCell>
+													<TableCell>
+														<div className="flex gap-1 flex-wrap">
+															<Badge
+																className={`rounded-sm ${getScoreColor(
+																	item.cleanliness
+																)}`}
+															>
+																Cleanliness:{" "}
+																{
+																	item.cleanliness
+																}
+															</Badge>
+															<Badge
+																className={`rounded-sm ${getScoreColor(
+																	item.privacy
+																)}`}
+															>
+																Privacy:{" "}
+																{
+																	item.privacy
+																}
+															</Badge>
+															<Badge
+																className={`rounded-sm ${getScoreColor(
+																	item.respect
+																)}`}
+															>
+																Respect:{" "}
+																{
+																	item.respect
+																}
+															</Badge>
+														</div>
+													</TableCell>
+													<TableCell className="max-w-[200px] truncate">
+														{item.comments ||
+															"No comments"}
 													</TableCell>
 												</TableRow>
+											)
+										)}
+									</TableBody>
+								</Table>
+							</div>
+
+							{data.data.pagination.total_pages > 1 && (
+								<div className="flex justify-center mt-4">
+									<Pagination>
+										<PaginationContent>
+											<PaginationItem>
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={() =>
+														handlePageChange(
+															Math.max(
+																1,
+																currentPage -
+																	1
+															)
+														)
+													}
+													disabled={
+														currentPage ===
+														1
+													}
+												>
+													Previous
+												</Button>
+											</PaginationItem>
+
+											{currentPage > 2 && (
+												<>
+													<PaginationItem>
+														<PaginationLink
+															onClick={() =>
+																handlePageChange(
+																	1
+																)
+															}
+														>
+															1
+														</PaginationLink>
+													</PaginationItem>
+													{currentPage >
+														3 && (
+														<PaginationItem>
+															<PaginationEllipsis />
+														</PaginationItem>
+													)}
+												</>
 											)}
-										</TableBody>
-									</Table>
+
+											{currentPage > 1 && (
+												<PaginationItem>
+													<PaginationLink
+														onClick={() =>
+															handlePageChange(
+																currentPage -
+																	1
+															)
+														}
+													>
+														{currentPage -
+															1}
+													</PaginationLink>
+												</PaginationItem>
+											)}
+
+											<PaginationItem>
+												<PaginationLink
+													isActive
+												>
+													{currentPage}
+												</PaginationLink>
+											</PaginationItem>
+
+											{currentPage <
+												data.data.pagination
+													.total_pages && (
+												<PaginationItem>
+													<PaginationLink
+														onClick={() =>
+															handlePageChange(
+																currentPage +
+																	1
+															)
+														}
+													>
+														{currentPage +
+															1}
+													</PaginationLink>
+												</PaginationItem>
+											)}
+
+											{currentPage <
+												data.data.pagination
+													.total_pages -
+													1 && (
+												<>
+													{currentPage <
+														data.data
+															.pagination
+															.total_pages -
+															2 && (
+														<PaginationItem>
+															<PaginationEllipsis />
+														</PaginationItem>
+													)}
+													<PaginationItem>
+														<PaginationLink
+															onClick={() =>
+																handlePageChange(
+																	data
+																		.data
+																		.pagination
+																		.total_pages
+																)
+															}
+														>
+															{
+																data
+																	.data
+																	.pagination
+																	.total_pages
+															}
+														</PaginationLink>
+													</PaginationItem>
+												</>
+											)}
+
+											<PaginationItem>
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={() =>
+														handlePageChange(
+															Math.min(
+																data
+																	.data
+																	.pagination
+																	.total_pages,
+																currentPage +
+																	1
+															)
+														)
+													}
+													disabled={
+														currentPage ===
+														data.data
+															.pagination
+															.total_pages
+													}
+												>
+													Next
+												</Button>
+											</PaginationItem>
+										</PaginationContent>
+									</Pagination>
 								</div>
-							</div>
-
-							{/* Infinite scroll loading indicator */}
-							<div
-								ref={loaderRef}
-								className="flex flex-col items-center py-6 mt-4 border-t"
-							>
-								{isLoadingMore && (
-									<div className="flex flex-col items-center">
-										<Loader
-											size="md"
-											text="Loading more data..."
-										/>
-										<p className="text-sm text-muted-foreground mt-2">
-											Loading page{" "}
-											{currentPage} of{" "}
-											{totalPages}
-										</p>
-									</div>
-								)}
-
-								{!isLoadingMore && (
-									<div className="flex flex-col gap-2">
-										<button
-											className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-											onClick={() => {
-												
-												const nextPage =
-													currentPage +
-													1;
-												
-												fetchNextPage(
-													nextPage
-												);
-											}}
-										>
-											Load More Data 
-										</button>
-
-										<button
-											className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition-colors text-sm"
-											onClick={() => {
-												
-												// Force reset
-												setCurrentPage(1);
-												setAllData([]);
-												setHasMore(true);
-												console.log(
-													"State reset to page 1"
-												);
-											}}
-										>
-											Reset
-										</button>
-									</div>
-								)}
-
-								{(!hasMore ||
-									currentPage >= totalPages) &&
-									allData.length > 0 && (
-										<div className="text-sm text-muted-foreground mt-2">
-											All data loaded (
-											{allData.length} of{" "}
-											{data.total} records)
-										</div>
-									)}
-							</div>
-						</>
+							)}
+						</div>
 					)}
 				</CardContent>
 			</Card>

@@ -71,10 +71,8 @@ export async function loginUser(username: string, password: string) {
         // Clear timeout since we got a response
         clearTimeout(timeoutId);
 
-        console.log(`API: Login response status: ${response.status} ${response.statusText}`);
 
         const data = await response.json();
-        console.log(`API: Login response data:`, data);
 
         if (!response.ok) {
             const errorMsg = data.message || 'Unknown error';

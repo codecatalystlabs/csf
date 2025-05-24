@@ -88,6 +88,13 @@ export function SatisfactionGaugeChart({ filters }: Props) {
 		return "😞"; // Dissatisfied
 	};
 
+	// Get satisfaction level text
+	const getSatisfactionLevel = (percentage: number) => {
+		if (percentage >= 80) return "Satisfied";
+		if (percentage >= 50) return "Neutral";
+		return "Dissatisfied";
+	};
+
 	// Calculate needle rotation based on percentage (0% = -90deg, 100% = 90deg)
 	const getNeedleRotation = (percentage: number) => {
 		// Map 0-100 to -90-90 degrees
@@ -158,60 +165,148 @@ export function SatisfactionGaugeChart({ filters }: Props) {
 			</CardHeader>
 			<CardContent>
 				<div className="flex flex-col items-center">
-					<div className="relative w-full max-w-[300px] mx-auto">
-						{/* Gauge container */}
-						<div className="relative h-[150px] overflow-hidden">
-							{/* Semi-circle background */}
-							<div className="absolute bottom-0 left-0 right-0 h-[150px] w-full rounded-t-full overflow-hidden">
-								{/* Color zones - Red (0-50%) */}
-								<div className="absolute bottom-0 left-0 h-full w-[33%] bg-red-500"></div>
+					{/* Improved SVG Gauge */}
+					<div className="relative w-[300px] h-[200px]">
+						<svg
+							width="300"
+							height="200"
+							viewBox="0 0 300 200"
+						>
+							{/* Background track */}
+							<path
+								d="M 50,150 A 100,100 0 0,1 250,150"
+								fill="none"
+								stroke="#e5e7eb"
+								strokeWidth="32"
+								strokeLinecap="round"
+							/>
 
-								{/* Color zones - Yellow (50-80%) */}
-								<div className="absolute bottom-0 left-[33%] h-full w-[27%] bg-yellow-300"></div>
+							{/* Three distinct color arcs */}
+							{/* Red arc: 0-50% */}
+							<path
+								d="M 50,150 A 100,100 0 0,1 150,50"
+								fill="none"
+								stroke="rgb(239, 68, 68)"
+								strokeWidth="30"
+								strokeLinecap="round"
+							/>
 
-								{/* Color zones - Green (80-100%) */}
-								<div className="absolute bottom-0 right-0 h-full w-[40%] bg-green-500"></div>
+							{/* Yellow arc: 50-80% - STRONGER YELLOW */}
+							<path
+								d="M 150,50 A 100,100 0 0,1 215,84"
+								fill="none"
+								stroke="rgb(234, 179, 8)"
+								strokeWidth="30"
+								strokeLinecap="round"
+							/>
 
-								{/* Needle */}
-								<div
-									className="absolute bottom-0 left-1/2 transform -translate-x-[2px] origin-bottom"
-									style={{
-										rotate: `${getNeedleRotation(
-											currentSatisfaction
-										)}deg`,
-										transition:
-											"rotate 0.5s ease-out",
-									}}
-								>
-									<div className="w-1 h-[140px] bg-blue-600"></div>
-									<div className="w-4 h-4 rounded-full bg-blue-600 -mt-1 -ml-1.5"></div>
-								</div>
+							{/* Green arc: 80-100% */}
+							<path
+								d="M 215,84 A 100,100 0 0,1 250,150"
+								fill="none"
+								stroke="rgb(34, 197, 94)"
+								strokeWidth="30"
+								strokeLinecap="round"
+							/>
 
-								{/* Gauge ticks */}
-								<div className="absolute bottom-0 w-full flex justify-between px-4 pb-4">
-									<span className="text-xs font-bold text-white">
-										0%
-									</span>
-									<span className="text-xs font-bold text-white">
-										50%
-									</span>
-									<span className="text-xs font-bold text-white">
-										100%
-									</span>
-								</div>
-							</div>
+							{/* Gauge labels with background circles */}
+							{/* 0% label */}
+							<circle
+								cx="50"
+								cy="150"
+								r="15"
+								fill="rgb(239, 68, 68)"
+							/>
+							<text
+								x="50"
+								y="175"
+								textAnchor="middle"
+								fontSize="12"
+								fill="currentColor"
+							>
+								0%
+							</text>
+
+							{/* 50% label - STRONGER YELLOW */}
+							<circle
+								cx="150"
+								cy="50"
+								r="15"
+								fill="rgb(234, 179, 8)"
+							/>
+							<text
+								x="150"
+								y="30"
+								textAnchor="middle"
+								fontSize="12"
+								fill="currentColor"
+							>
+								50%
+							</text>
+
+							{/* 100% label */}
+							<circle
+								cx="250"
+								cy="150"
+								r="15"
+								fill="rgb(34, 197, 94)"
+							/>
+							<text
+								x="250"
+								y="175"
+								textAnchor="middle"
+								fontSize="12"
+								fill="currentColor"
+							>
+								100%
+							</text>
+
+							{/* Needle */}
+							<g
+								transform={`rotate(${getNeedleRotation(
+									currentSatisfaction
+								)}, 150, 150)`}
+							>
+								<line
+									x1="150"
+									y1="150"
+									x2="150"
+									y2="70"
+									stroke="black"
+									strokeWidth="3"
+								/>
+								<circle
+									cx="150"
+									cy="150"
+									r="10"
+									fill="black"
+									stroke="white"
+									strokeWidth="2"
+								/>
+							</g>
+
+							{/* Current value */}
+							<text
+								x="150"
+								y="120"
+								textAnchor="middle"
+								fontSize="24"
+								fontWeight="bold"
+								fill="currentColor"
+							>
+								{currentSatisfaction}%
+							</text>
+						</svg>
+					</div>
+
+					<div className="text-center mb-2 mt-2">
+						{/* Satisfaction rating and emoji */}
+						<div className="text-xl font-medium">
+							{getSatisfactionLevel(currentSatisfaction)}
 						</div>
-
-						<div className="text-center mb-2 mt-4">
-							{/* Emoji indicator */}
-							<div className="text-5xl mb-2">
-								{getSentimentIcon(currentSatisfaction)}
-							</div>
-
-							{/* Percentage indicator */}
-							<div className="text-2xl font-bold">
-								[{currentSatisfaction}%]
-							</div>
+						{/* Emoji indicator */}
+						<div className="text-5xl mb-2">
+							{getSentimentIcon(currentSatisfaction)}
 						</div>
 					</div>
 
@@ -226,11 +321,12 @@ export function SatisfactionGaugeChart({ filters }: Props) {
 									<div className="w-4 h-4 rounded-full bg-green-500"></div>
 									<span>Satisfied</span>
 									<span className="text-xs text-gray-500">
-										({">"}80%)
+										(80-100%)
 									</span>
 								</div>
 								<div className="flex items-center gap-1">
-									<div className="w-4 h-4 rounded-full bg-yellow-300"></div>
+									{/* STRONGER YELLOW */}
+									<div className="w-4 h-4 rounded-full bg-yellow-500"></div>
 									<span>Neutral</span>
 									<span className="text-xs text-gray-500">
 										(50-80%)
@@ -240,7 +336,7 @@ export function SatisfactionGaugeChart({ filters }: Props) {
 									<div className="w-4 h-4 rounded-full bg-red-500"></div>
 									<span>Dissatisfied</span>
 									<span className="text-xs text-gray-500">
-										({"<"}50%)
+										(0-50%)
 									</span>
 								</div>
 							</div>

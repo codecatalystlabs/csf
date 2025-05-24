@@ -44,6 +44,9 @@ export const DASHBOARD_ENDPOINTS = {
     // Get all satisfaction data with pagination and filters
     ALL_SATISFACTION_DATA: `${BASE_URL}/visualization/all-satisfaction-data`,
 
+    // Get client comments with pagination and filters
+    CLIENT_COMMENTS: `${BASE_URL}/comments`,
+
     // Get dashboard data with optional filters
     DASHBOARD_DATA: `${BASE_URL}/dashboard/data`,
 
@@ -53,6 +56,8 @@ export const DASHBOARD_ENDPOINTS = {
         district?: string;
         facility?: string;
         period?: string;
+        start_year?: number;
+        end_year?: number;
         role?: string;
     }) => {
         const params = new URLSearchParams();
@@ -62,6 +67,8 @@ export const DASHBOARD_ENDPOINTS = {
         if (filters.district) params.append("district", filters.district);
         if (filters.facility) params.append("facility", filters.facility);
         if (filters.role) params.append("role", filters.role);
+        if (filters.start_year) params.append("start_year", filters.start_year.toString());
+        if (filters.end_year) params.append("end_year", filters.end_year.toString());
 
         const queryString = params.toString();
         return `${BASE_URL}/dashboard_data${queryString ? `?${queryString}` : ''}`;

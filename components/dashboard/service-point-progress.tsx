@@ -10,16 +10,27 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/app/context/auth-context";
 import { LocationFilterValues } from "@/components/filters/location-filter";
 
-// Define the service point data type
-interface ServicePointData {
-	today: number;
-	this_month: number;
-	cumulative: number;
+// Updated types to match the actual API response
+type TimeFrame =
+	| "today"
+	| "this_month"
+	| "last_month"
+	| "this_year"
+	| "last_year"
+	| "current_quarter"
+	| "previous_quarter"
+	| "cumulative";
+
+// Define the service point data type for a specific time frame
+interface ServicePointTimeFrameData {
+	[key: string]: number;
 }
 
 interface ServicePointResponse {
 	status: string;
-	data: Record<string, ServicePointData>;
+	data: {
+		[key in TimeFrame]: ServicePointTimeFrameData;
+	};
 }
 
 interface ServicePointProgressProps {
@@ -27,9 +38,7 @@ interface ServicePointProgressProps {
 }
 
 export function ServicePointProgress({ filters }: ServicePointProgressProps) {
-	const [timeframe, setTimeframe] = useState<
-		"today" | "this_month" | "cumulative"
-	>("today");
+	const [timeframe, setTimeframe] = useState<TimeFrame>("this_month");
 	const { user } = useAuth();
 
 	// Build the endpoint URL with role parameter
@@ -83,10 +92,8 @@ export function ServicePointProgress({ filters }: ServicePointProgressProps) {
 
 	// Function to format service point name
 	const formatServicePointName = (name: string): string => {
-		// Remove leading number and underscore
-		const cleanName = name.replace(/^[0-9]+_/, "");
 		// Replace underscores with spaces
-		return cleanName.replace(/_/g, " ");
+		return name.replace(/_/g, " ");
 	};
 
 	if (isLoading)
@@ -107,46 +114,46 @@ export function ServicePointProgress({ filters }: ServicePointProgressProps) {
 	if (!data) return null;
 
 	// Get data for selected timeframe
-	const servicePointItems = Object.entries(data.data)
-		.map(([name, values]) => ({
-			name: formatServicePointName(name),
-			originalName: name,
-			value: values[timeframe],
-			color: getProgressColor(values[timeframe]),
-		}))
-		.sort((a, b) => {
-			// Sort by the original numeric prefix
-			const numA = parseInt(a.originalName.split("_")[0]) || 0;
-			const numB = parseInt(b.originalName.split("_")[0]) || 0;
-			return numA - numB;
-		});
+	const servicePointItems =
+		data?.data && data.data[timeframe]
+			? Object.entries(data.data[timeframe])
+					.map(([name, value]) => ({
+						name: formatServicePointName(name),
+						originalName: name,
+						// Ensure value is a number and handle null/undefined
+						value: typeof value === "number" ? value : 0,
+						color: getProgressColor(
+							typeof value === "number" ? value : 0
+						),
+					}))
+					.sort((a, b) => b.value - a.value) // Sort by value descending
+			: [];
 
 	return (
 		<Card>
 			<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
 				<CardTitle className="text-lg font-medium">
-					Service Point Distribution
+					Satisfaction Rate By ServicePoint
 				</CardTitle>
 				<Activity className="h-5 w-5 text-muted-foreground" />
 			</CardHeader>
 
 			<CardContent className="space-y-4">
 				<Tabs
-					defaultValue="today"
+					defaultValue="this_month"
 					className="w-full"
+					value={timeframe}
 					onValueChange={(value) =>
-						setTimeframe(
-							value as
-								| "today"
-								| "this_month"
-								| "cumulative"
-						)
+						setTimeframe(value as TimeFrame)
 					}
 				>
-					<TabsList className="grid w-full grid-cols-3">
+					<TabsList className="grid w-full grid-cols-4">
 						<TabsTrigger value="today">Today</TabsTrigger>
 						<TabsTrigger value="this_month">
 							This Month
+						</TabsTrigger>
+						<TabsTrigger value="last_month">
+							Last Month
 						</TabsTrigger>
 						<TabsTrigger value="cumulative">
 							Cumulative
@@ -163,14 +170,19 @@ export function ServicePointProgress({ filters }: ServicePointProgressProps) {
 							<div className="flex justify-between text-sm">
 								<span>{point.name}</span>
 								<span className="font-medium">
-									{point.value.toFixed(1)}%
+									{/* Add null check before using toFixed */}
+									{point.value !== null &&
+									point.value !== undefined
+										? point.value.toFixed(1)
+										: "0.0"}
+									%
 								</span>
 							</div>
 							<div className="h-2 rounded-full bg-secondary overflow-hidden">
 								<div
 									className={`h-full rounded-full ${point.color}`}
 									style={{
-										width: `${point.value}%`,
+										width: `${point.value || 0}%`,
 									}}
 								></div>
 							</div>

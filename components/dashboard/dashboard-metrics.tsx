@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import useSWR from "swr";
 import {
 	Users,
@@ -28,46 +28,142 @@ import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/app/context/auth-context";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import { Label } from "@/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import { Loader } from "@/components/ui/loader";
 
-type TimePeriod = "today" | "this_month" | "last_month" | "cumulative";
+// Function to generate a list of years (e.g., from 2020 to current year)
+const generateYears = () => {
+	const currentYear = new Date().getFullYear();
+	const years = [];
+	for (let year = 2020; year <= currentYear; year++) {
+		years.push(year);
+	}
+	return years;
+};
+
+type TimePeriod =
+	| "today"
+	| "this_month"
+	| "last_month"
+	| "cumulative"
+	| "custom_year_range"
+	| "last_year"
+	| "this_year"
+	| "current_quarter"
+	| "previous_quarter";
 
 interface DashboardMetricsProps {
 	filters?: LocationFilterValues;
+	onYearRangeChange?: (startYear?: number, endYear?: number) => void;
+	initialStartYear?: number;
+	initialEndYear?: number;
 }
 
-export function DashboardMetrics({ filters }: DashboardMetricsProps) {
+export function DashboardMetrics({
+	filters,
+	onYearRangeChange,
+	initialStartYear,
+	initialEndYear,
+}: DashboardMetricsProps) {
 	const { toast } = useToast();
 	const { user } = useAuth();
 	const [timePeriod, setTimePeriod] = useState<TimePeriod>("this_month");
+	const [startYear, setStartYear] = useState<number | undefined>(
+		initialStartYear
+	);
+	const [endYear, setEndYear] = useState<number | undefined>(initialEndYear);
 	const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 	const dashboardRef = useRef<HTMLDivElement>(null);
+	const availableYears = generateYears();
 
-	// Build the dashboard data endpoint with filter parameters including user role
+	const handleStartYearChange = useCallback(
+		(value: string) => {
+			const year = parseInt(value);
+			setStartYear(year);
+			if (endYear && year > endYear) {
+				setEndYear(year);
+			}
+			setTimePeriod("custom_year_range");
+			if (onYearRangeChange)
+				onYearRangeChange(
+					year,
+					endYear && year > endYear ? year : endYear
+				);
+		},
+		[endYear, onYearRangeChange]
+	);
+
+	const handleEndYearChange = useCallback(
+		(value: string) => {
+			const year = parseInt(value);
+			setEndYear(year);
+			if (startYear && year < startYear) {
+				setStartYear(year);
+			}
+			setTimePeriod("custom_year_range");
+			if (onYearRangeChange)
+				onYearRangeChange(
+					startYear && year < startYear ? year : startYear,
+					year
+				);
+		},
+		[startYear, onYearRangeChange]
+	);
+
+	// Update internal year state if initial props change
+	useEffect(() => {
+		setStartYear(initialStartYear);
+	}, [initialStartYear]);
+
+	useEffect(() => {
+		setEndYear(initialEndYear);
+	}, [initialEndYear]);
+
 	const dashboardEndpoint = DASHBOARD_ENDPOINTS.getFilteredDashboardData({
 		region: filters?.region || user?.region,
 		district: filters?.district,
 		facility: filters?.facility,
-		period: timePeriod,
+		period: timePeriod === "custom_year_range" ? undefined : timePeriod,
+		start_year:
+			timePeriod === "custom_year_range" ? startYear : undefined,
+		end_year: timePeriod === "custom_year_range" ? endYear : undefined,
 		role: user?.region ? "region" : "national",
 	});
 
-	// Fetch dashboard data with filters
 	const {
 		data,
 		error,
 		isLoading,
 		mutate: refreshDashboard,
-	} = useSWR(dashboardEndpoint, authFetcher);
+	} = useSWR(dashboardEndpoint, authFetcher, { revalidateOnFocus: false });
 
-	// Handle period change
 	const handlePeriodChange = (period: TimePeriod) => {
 		setTimePeriod(period);
+		// If a predefined period is selected, clear custom years from API call
+		if (period !== "custom_year_range") {
+			// Optionally clear visual selection of years or let them persist for next custom selection
+			// setStartYear(undefined)
+			// setEndYear(undefined)
+			if (onYearRangeChange) onYearRangeChange(undefined, undefined); // Clear in parent if needed
+		}
 	};
 
-	// Get data for the selected time period
-	const periodData = data?.[timePeriod] || {};
+	const periodData =
+		data?.[
+			timePeriod === "custom_year_range" && (startYear || endYear)
+				? "cumulative"
+				: timePeriod
+		] || {};
 
-	// Function to determine satisfaction color based on the value
+	console.log(periodData);
+
 	const getSatisfactionColor = (value: number): string => {
 		if (value >= 80) return "bg-green-500";
 		if (value > 50) return "bg-yellow-500";
@@ -77,10 +173,9 @@ export function DashboardMetrics({ filters }: DashboardMetricsProps) {
 	const satisfactionPercentage = periodData.overall_satisfaction ?? 0;
 	const satisfactionColor = getSatisfactionColor(satisfactionPercentage);
 
-	// Generate PDF report with dashboard visuals
 	const generateReport = async () => {
 		setIsGeneratingReport(true);
-
+		const reportTimestamp = new Date().toISOString().split("T")[0];
 		try {
 			toast({
 				title: "Generating Report",
@@ -92,15 +187,20 @@ export function DashboardMetrics({ filters }: DashboardMetricsProps) {
 				throw new Error("Dashboard reference not found");
 			}
 
-			// Get current date for report filename and title
 			const reportDate = new Date().toLocaleDateString();
-			const reportTimestamp = new Date().toISOString().split("T")[0];
 
-			// Create report title with filters
 			let reportTitle = `Dashboard Report - ${timePeriod.replace(
 				"_",
 				" "
 			)} - ${reportDate}`;
+			if (timePeriod === "custom_year_range" && startYear && endYear) {
+				reportTitle = `Dashboard Report - ${startYear} to ${endYear} - ${reportDate}`;
+			} else if (timePeriod === "custom_year_range" && startYear) {
+				reportTitle = `Dashboard Report - From ${startYear} - ${reportDate}`;
+			} else if (timePeriod === "custom_year_range" && endYear) {
+				reportTitle = `Dashboard Report - Up to ${endYear} - ${reportDate}`;
+			}
+
 			let filterText = "";
 
 			if (filters?.region)
@@ -119,16 +219,14 @@ export function DashboardMetrics({ filters }: DashboardMetricsProps) {
 					" "
 				)} `;
 
-			// Use html2canvas to capture the dashboard as an image
 			const canvas = await html2canvas(dashboardRef.current, {
-				scale: 2, // Higher scale for better quality
-				useCORS: true, // Allow cross-origin images
+				scale: 2,
+				useCORS: true,
 				logging: false,
 				backgroundColor: "#ffffff",
 			});
 
-			// Create PDF with appropriate page size
-			const imgWidth = 210; // A4 width in mm
+			const imgWidth = 210;
 			const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
 			const pdf = new jsPDF({
@@ -137,7 +235,6 @@ export function DashboardMetrics({ filters }: DashboardMetricsProps) {
 				format: "a4",
 			});
 
-			// Add title and filters to PDF
 			pdf.setFontSize(18);
 			pdf.text(reportTitle, 10, 10);
 
@@ -146,7 +243,6 @@ export function DashboardMetrics({ filters }: DashboardMetricsProps) {
 				pdf.text(`Filters: ${filterText}`, 10, 20);
 			}
 
-			// Add the canvas image to PDF
 			const imgData = canvas.toDataURL("image/png");
 			pdf.addImage(
 				imgData,
@@ -157,9 +253,12 @@ export function DashboardMetrics({ filters }: DashboardMetricsProps) {
 				imgHeight * 0.9
 			);
 
-			// Save the PDF
 			pdf.save(
-				`dashboard-report-${timePeriod}-${reportTimestamp}.pdf`
+				`dashboard-report-${
+					timePeriod === "custom_year_range"
+						? `${startYear || "any"}-${endYear || "any"}`
+						: timePeriod
+				}-${reportTimestamp}.pdf`
 			);
 
 			toast({
@@ -179,7 +278,6 @@ export function DashboardMetrics({ filters }: DashboardMetricsProps) {
 				duration: 5000,
 			});
 
-			// Fallback for development/demo - try server API
 			try {
 				const params = new URLSearchParams();
 				if (filters?.region)
@@ -190,7 +288,15 @@ export function DashboardMetrics({ filters }: DashboardMetricsProps) {
 					params.append("facility", filters.facility);
 				if (user?.region) params.append("role", "region");
 				else params.append("role", "national");
-				params.append("period", timePeriod);
+
+				if (timePeriod === "custom_year_range") {
+					if (startYear)
+						params.append("start_year", startYear.toString());
+					if (endYear)
+						params.append("end_year", endYear.toString());
+				} else {
+					params.append("period", timePeriod);
+				}
 
 				const reportEndpoint = `${BASE_URL}/reports/generate?${params.toString()}`;
 
@@ -201,12 +307,10 @@ export function DashboardMetrics({ filters }: DashboardMetricsProps) {
 					duration: 3000,
 				});
 
-				// Fetch the report as a blob
 				const response = await fetch(reportEndpoint, {
 					method: "GET",
 					headers: {
 						Accept: "application/pdf",
-						// Add auth header if needed
 						Authorization: `Bearer ${localStorage.getItem(
 							"auth_token"
 						)}`,
@@ -219,73 +323,38 @@ export function DashboardMetrics({ filters }: DashboardMetricsProps) {
 					);
 				}
 
-				// Get the blob from the response
 				const blob = await response.blob();
-
-				// Create a URL for the blob
 				const url = window.URL.createObjectURL(blob);
-
-				// Create a temporary anchor element and trigger download
 				const a = document.createElement("a");
 				a.href = url;
-				a.download = `dashboard-report-${timePeriod}-${
-					new Date().toISOString().split("T")[0]
-				}.pdf`;
+				a.download = `dashboard-report-${
+					timePeriod === "custom_year_range"
+						? `${startYear || "any"}-${endYear || "any"}`
+						: timePeriod
+				}-${reportTimestamp}.pdf`;
 				document.body.appendChild(a);
 				a.click();
-
-				// Clean up
+				a.remove();
 				window.URL.revokeObjectURL(url);
-				document.body.removeChild(a);
 
 				toast({
-					title: "Server Report Generated",
+					title: "Server Report Downloaded",
 					description:
-						"Your report has been downloaded from the server.",
+						"PDF report successfully downloaded from the server.",
 					duration: 3000,
 				});
 			} catch (serverError) {
 				console.error(
-					"Error generating server report:",
+					"Error generating report from server:",
 					serverError
 				);
-
-				// Ultimate fallback - JSON data
 				toast({
-					title: "Generating Basic Report",
+					title: "Server Report Failed",
 					description:
-						"Generating a simplified JSON report with dashboard data.",
-					duration: 3000,
+						"Could not generate report from server either.",
+					variant: "destructive",
+					duration: 5000,
 				});
-
-				setTimeout(() => {
-					// Create a simple text blob with dashboard data as fallback
-					const reportData = JSON.stringify(periodData, null, 2);
-					const blob = new Blob([reportData], {
-						type: "application/json",
-					});
-					const url = window.URL.createObjectURL(blob);
-
-					// Create a temporary anchor element and trigger download
-					const a = document.createElement("a");
-					a.href = url;
-					a.download = `dashboard-report-${timePeriod}-${
-						new Date().toISOString().split("T")[0]
-					}.json`;
-					document.body.appendChild(a);
-					a.click();
-
-					// Clean up
-					window.URL.revokeObjectURL(url);
-					document.body.removeChild(a);
-
-					toast({
-						title: "Basic Report Generated",
-						description:
-							"A simplified JSON report has been downloaded.",
-						duration: 3000,
-					});
-				}, 1500);
 			}
 		} finally {
 			setIsGeneratingReport(false);
@@ -294,7 +363,7 @@ export function DashboardMetrics({ filters }: DashboardMetricsProps) {
 
 	return (
 		<div className="space-y-4">
-			<div className="flex flex-wrap gap-2">
+			<div className="flex flex-wrap gap-2 items-center">
 				<Button
 					variant={
 						timePeriod === "today" ? "default" : "outline"
@@ -317,6 +386,37 @@ export function DashboardMetrics({ filters }: DashboardMetricsProps) {
 				</Button>
 				<Button
 					variant={
+						timePeriod === "current_quarter"
+							? "default"
+							: "outline"
+					}
+					onClick={() => handlePeriodChange("current_quarter")}
+					size="sm"
+				>
+					Current Quarter
+				</Button>
+				<Button
+					variant={
+						timePeriod === "previous_quarter"
+							? "default"
+							: "outline"
+					}
+					onClick={() => handlePeriodChange("previous_quarter")}
+					size="sm"
+				>
+					Previous Quarter
+				</Button>
+				<Button
+					variant={
+						timePeriod === "this_year" ? "default" : "outline"
+					}
+					onClick={() => handlePeriodChange("this_year")}
+					size="sm"
+				>
+					This Year
+				</Button>
+				<Button
+					variant={
 						timePeriod === "last_month"
 							? "default"
 							: "outline"
@@ -325,6 +425,15 @@ export function DashboardMetrics({ filters }: DashboardMetricsProps) {
 					size="sm"
 				>
 					Last Month
+				</Button>
+				<Button
+					variant={
+						timePeriod === "last_year" ? "default" : "outline"
+					}
+					onClick={() => handlePeriodChange("last_year")}
+					size="sm"
+				>
+					Last year
 				</Button>
 				<Button
 					variant={
@@ -337,6 +446,67 @@ export function DashboardMetrics({ filters }: DashboardMetricsProps) {
 				>
 					Cumulative
 				</Button>
+
+				{/* Year Range Pickers */}
+				{/* <div className="flex gap-2 items-center ml-4">
+					<Label
+						htmlFor="startYearMetric"
+						className="text-sm"
+					>
+						From:
+					</Label>
+					<Select
+						value={startYear?.toString()}
+						onValueChange={handleStartYearChange}
+					>
+						<SelectTrigger
+							id="startYearMetric"
+							className="w-[100px] h-9 text-xs"
+						>
+							<SelectValue placeholder="Year" />
+						</SelectTrigger>
+						<SelectContent>
+							{availableYears.map((year) => (
+								<SelectItem
+									key={year}
+									value={year.toString()}
+								>
+									{year}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</div>
+				<div className="flex gap-2 items-center">
+					<Label
+						htmlFor="endYearMetric"
+						className="text-sm"
+					>
+						To:
+					</Label>
+					<Select
+						value={endYear?.toString()}
+						onValueChange={handleEndYearChange}
+					>
+						<SelectTrigger
+							id="endYearMetric"
+							className="w-[100px] h-9 text-xs"
+						>
+							<SelectValue placeholder="Year" />
+						</SelectTrigger>
+						<SelectContent>
+							{availableYears.map((year) => (
+								<SelectItem
+									key={year}
+									value={year.toString()}
+								>
+									{year}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</div> */}
+
 				<div className="ml-auto flex gap-2">
 					<Button
 						variant="outline"
@@ -367,52 +537,32 @@ export function DashboardMetrics({ filters }: DashboardMetricsProps) {
 				</div>
 			</div>
 
-			{error ? (
-				<Card className="p-4 text-red-500">
-					Error loading dashboard data:{" "}
-					{error.message || "Unknown error"}
-				</Card>
+			{/* Dashboard content */}
+			{isLoading && !data ? (
+				<div className="h-96 flex items-center justify-center">
+					<Loader
+						size="lg"
+						text="Loading dashboard data..."
+					/>
+				</div>
+			) : error ? (
+				<div className="text-red-500">
+					Error loading dashboard data. Please try again.
+				</div>
 			) : (
-				<div ref={dashboardRef}>
-					{/* Overall Satisfaction Progress Bar */}
-					<Card className="mb-4">
-						<CardHeader className="pb-2">
-							<CardTitle className="text-lg font-medium">
-								Overall Client Satisfaction
-							</CardTitle>
-						</CardHeader>
-						<CardContent>
-							<div className="space-y-2">
-								<div className="flex justify-between text-sm">
-									<span>Satisfaction Rate</span>
-									<span className="font-medium">
-										{satisfactionPercentage}%
-									</span>
-								</div>
-								<div className="h-4 rounded-full bg-secondary overflow-hidden">
-									<div
-										className={`h-full rounded-full ${satisfactionColor}`}
-										style={{
-											width: `${satisfactionPercentage}%`,
-										}}
-									></div>
-								</div>
-								<div className="flex justify-between text-xs text-muted-foreground">
-									<span>0%</span>
-									<span>50%</span>
-									<span>100%</span>
-								</div>
-							</div>
-						</CardContent>
-					</Card>
-
-					<div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4 mb-4">
-						<MetricsCard
+				<div
+					ref={dashboardRef}
+					className="p-4  bg-white rounded-md shadow"
+				>
+					<SatisfactionGaugeChart filters={filters} />
+					{/* Metric cards */}
+					<div className="grid mt-4 grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4 mb-4">
+						{/* <MetricsCard
 							title="Total Entries"
 							value={periodData.total_clients ?? 0}
 							icon={FileBarChart}
 							isLoading={isLoading}
-						/>
+						/> */}
 						<MetricsCard
 							title="Total Clients"
 							value={periodData.total_clients ?? 0}
@@ -439,37 +589,36 @@ export function DashboardMetrics({ filters }: DashboardMetricsProps) {
 							isLoading={isLoading}
 						/>
 						<MetricsCard
-							title="Facilities Asking Bribes"
+							title="Facilities"
 							value={
-								periodData.facilities_asking_bribes ?? 0
+								periodData.total_facilities ?? 0
 							}
 							icon={AlertTriangle}
 							trend={
-								periodData.facilities_asking_bribes > 0
+								periodData.total_facilities > 0
 									? "up"
 									: "neutral"
 							}
 							trendValue={
-								periodData.facilities_asking_bribes > 0
+								periodData.total_facilities > 0
 									? "Requires attention"
 									: "No issues reported"
 							}
 							isLoading={isLoading}
 						/>
-						<MetricsCard
+						{/* <MetricsCard
 							title="Timely Encounters"
 							value={periodData.timely_encounters ?? 0}
 							icon={Clock}
 							isLoading={isLoading}
-						/>
+						/> */}
 					</div>
 
 					{/* Satisfaction Visualizations */}
 					<div className="grid grid-cols-1 gap-4">
 						{/* Gauge and Pie Charts side-by-side */}
-						<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-							<SatisfactionGaugeChart filters={filters} />
-							<SatisfactionPieChart filters={filters} />
+						<div className="grid grid-cols-1  gap-4">
+							{/* <SatisfactionPieChart filters={filters} /> */}
 						</div>
 						{/* Trend Chart - full width */}
 						<SatisfactionTrendChart filters={filters} />

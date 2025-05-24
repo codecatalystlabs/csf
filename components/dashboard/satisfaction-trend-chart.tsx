@@ -235,7 +235,7 @@ export function SatisfactionTrendChart({
 							<YAxis
 								yAxisId="right"
 								orientation="right"
-								stroke="#82ca9d"
+								stroke="#eab308"
 								domain={[0, maxClientCount]}
 								fontSize={12}
 								tickLine={false}
@@ -247,7 +247,7 @@ export function SatisfactionTrendChart({
 									position: "insideRight",
 									style: {
 										textAnchor: "middle",
-										fill: "#82ca9d",
+										fill: "#eab308",
 									},
 								}}
 							/>
@@ -274,8 +274,8 @@ export function SatisfactionTrendChart({
 								yAxisId="right"
 								dataKey="clientCount"
 								name="Client Count"
-								fill="#82ca9d"
-								opacity={0.3}
+								fill="#eab308"
+								opacity={0.8}
 								barSize={20}
 							/>
 						</ComposedChart>
@@ -283,7 +283,7 @@ export function SatisfactionTrendChart({
 				</div>
 				<div className="text-xs text-gray-500 mt-2">
 					Note: Each month's satisfaction rate is calculated from
-					a different number of client responses (shown as green
+					a different number of client responses (shown as yellow
 					bars).
 				</div>
 			</CardContent>

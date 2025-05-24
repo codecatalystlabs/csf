@@ -448,7 +448,6 @@ export function AccountsTable() {
 
 	const handleFilterChange = useCallback(
 		(newFilters: LocationFilterValues) => {
-			console.log("Filter changed in Accounts Table:", newFilters);
 			setFilters(newFilters);
 		},
 		[]
@@ -486,7 +485,7 @@ export function AccountsTable() {
 				</CardHeader>
 				<CardContent>
 					<SatisfactionHeatmap filters={filters} />
-					<GroupedSatisfactionBarGraph filters={filters} />
+					{/* <GroupedSatisfactionBarGraph filters={filters} /> */}
 				</CardContent>
 			</Card>
 		</div>

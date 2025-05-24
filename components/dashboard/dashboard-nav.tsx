@@ -18,6 +18,7 @@ import {
 	TrendingUp,
 	ThumbsDown,
 	Database,
+	MessageSquare,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -40,15 +41,15 @@ interface NavItem {
 
 const navItems: NavItem[] = [
 	{
-		title: "Dashboard",
+		title: "Home",
 		href: "/dashboard",
 		icon: Home,
 	},
-	{
-		title: "Bribe",
-		href: "/dashboard/bribe",
-		icon: Banknote,
-	},
+	// {
+	// 	title: "Bribe",
+	// 	href: "/dashboard/bribe",
+	// 	icon: Banknote,
+	// },
 	{
 		title: "Level",
 		href: "/dashboard/opportunities",
@@ -63,6 +64,11 @@ const navItems: NavItem[] = [
 		title: "Client Disatisfaction",
 		href: "/dashboard/client-disatisfaction",
 		icon: ThumbsDown,
+	},
+	{
+		title: "Client Comments",
+		href: "/dashboard/client-comments",
+		icon: MessageSquare,
 	},
 	{
 		title: "All Data",
