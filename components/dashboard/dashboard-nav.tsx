@@ -51,7 +51,7 @@ const navItems: NavItem[] = [
 	// 	icon: Banknote,
 	// },
 	{
-		title: "Level",
+		title: "Level/Service Delivery Units",
 		href: "/dashboard/level",
 		icon: Building2,
 	},

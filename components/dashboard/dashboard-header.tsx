@@ -60,7 +60,7 @@ export function DashboardHeader() {
 						width={50}
 						height={50}
 					/>
-					<span className="hidden md:inline-block">CSF</span>
+					<span className="hidden md:inline-block">Routine Client Satisfaction Feedback</span>
 				</Link>
 				<span className="text-lg font-semibold md:hidden">
 					{getPageTitle()}
@@ -83,12 +83,12 @@ export function DashboardHeader() {
 						)}
 					</Button>
 				</div>
-				<Image
+				{/* <Image
 					src="https://res.cloudinary.com/dacjwtf69/image/upload/v1747980762/flag_vykum0.jpg"
 					alt="Uganda Flag"
 					width={70}
 					height={70}
-				/>
+				/> */}
 			</div>
 			<div className="ml-auto flex items-center gap-2 md:gap-4">
 				<form className="hidden md:block">

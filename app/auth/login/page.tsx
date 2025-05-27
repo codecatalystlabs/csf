@@ -22,18 +22,18 @@ export default function LoginPage() {
 						className="h-full w-full object-cover opacity-20"
 					/>
 				</div>
-				<div className="relative z-20 flex items-center text-lg font-medium">
+				<div className="relative z-20 flex flex-col items-center text-lg font-medium">
 					<Image
 						src="https://res.cloudinary.com/dacjwtf69/image/upload/v1747973562/mohlogo_zkpnbl.png"
 						alt="Logo"
 						width={150}
 						height={150}
 					/>
-					<h1 className="mx-4 text-3xl font-semibold tracking-tight">
-						Client Satisfaction Feedback
+					<h1 className="mt-4 text-3xl font-semibold tracking-tight text-center">
+						Routine Client Satisfaction Feedback
 					</h1>
 				</div>
-				<div className="relative z-20 mt-auto">
+				<div className="relative z-20 mt-14">
 					{/* Additional dashboard information */}
 					<Card className="bg-white">
 						<CardHeader>
@@ -49,7 +49,7 @@ export default function LoginPage() {
 								<li>
 									View metrics by different time
 									periods: Today, This Month, Last
-									Month, or Cumulative
+									Month, Last Quarter, This Quarter, Last Year, This Year and Cumulative
 								</li>
 								<li>
 									Filter data by Region, District,
@@ -62,8 +62,7 @@ export default function LoginPage() {
 									and more
 								</li>
 								<li>
-									Track potential issues such as
-									facilities requesting bribes
+									Track emerging issues at the facilities
 								</li>
 							</ul>
 						</CardContent>
