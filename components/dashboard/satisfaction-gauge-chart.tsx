@@ -19,7 +19,9 @@ interface SatisfactionTrendData {
 }
 
 interface Props {
-	filters?: LocationFilterValues;
+	filters?: LocationFilterValues & {
+		timeFilter?: string;
+	};
 }
 
 export function SatisfactionGaugeChart({ filters }: Props) {
@@ -30,6 +32,14 @@ export function SatisfactionGaugeChart({ filters }: Props) {
 	const endpoint = useMemo(() => {
 		const baseUrl = DASHBOARD_ENDPOINTS.SATISFACTION_TREND;
 		const params = new URLSearchParams();
+
+		// Add time filter from the selected filter value
+		if (filters?.timeFilter) {
+			params.append("time_filter", filters.timeFilter);
+		} else {
+			// Default to cumulative if no time filter is selected
+			params.append("time_filter", "cumulative");
+		}
 
 		// If region filter is set, use that first
 		if (filters?.region) {

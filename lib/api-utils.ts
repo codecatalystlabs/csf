@@ -10,17 +10,21 @@ import { AUTH_ENDPOINTS } from './api-config';
 export function createAuthHeaders(options: RequestInit = {}): RequestInit {
     const token = getAuthToken();
 
-    if (!token) {
-        return options;
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        ...options.headers as Record<string, string>,
+    };
+
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
     }
 
-    // Merge headers with authorization
+    // Merge with existing options
     return {
         ...options,
-        headers: {
-            ...options.headers,
-            'Authorization': `Bearer ${token}`,
-        },
+        headers,
+        mode: 'cors' as RequestMode,
     };
 }
 
@@ -62,10 +66,12 @@ export async function loginUser(username: string, password: string) {
         const response = await fetch(AUTH_ENDPOINTS.LOGIN, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
             },
             body: JSON.stringify({ username, password }),
-            signal: controller.signal
+            signal: controller.signal,
+            mode: 'cors'
         });
 
         // Clear timeout since we got a response

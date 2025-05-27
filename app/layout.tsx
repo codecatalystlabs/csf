@@ -5,6 +5,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/app/context/auth-context";
 import { Toaster } from "@/components/ui/toaster";
+import { UgandanFlagRibbon } from "@/components/UgandanFlagRibbon";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -25,6 +26,7 @@ export default function RootLayout({
 			suppressHydrationWarning
 		>
 			<body className={inter.className}>
+				<UgandanFlagRibbon />
 				<ThemeProvider
 					attribute="class"
 					defaultTheme="light"

@@ -10,6 +10,8 @@ import { IndicatorsProgress } from "./indicators-progress";
 import { ServicePointProgress } from "./service-point-progress";
 import Image from "next/image";
 
+
+
 export function DashboardOverview() {
 	const { user } = useAuth();
 	const [filters, setFilters] = useState<LocationFilterValues>({});
@@ -23,6 +25,7 @@ export function DashboardOverview() {
 
 	return (
 		<div className="flex flex-col gap-4">
+			{/* <UgandanFlagRibbon /> */}
 			<div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
 				<div className="flex items-center gap-2">
 					<h1 className="text-2xl font-bold">Home</h1>
@@ -40,25 +43,6 @@ export function DashboardOverview() {
 				restrictToUserRegion={true}
 				onFilterChange={handleFilterChange}
 			/>
-
-			{/* Display active filters */}
-			{(filters.region || filters.district || filters.facility) && (
-				<div className="p-2 border rounded-md bg-blue-50 text-blue-700 text-sm mb-4">
-					<strong>Filters applied:</strong>
-					{filters.region &&
-						` Region: ${filters.region.replace(/_/g, " ")}`}
-					{filters.district &&
-						` | District: ${filters.district.replace(
-							/_/g,
-							" "
-						)}`}
-					{filters.facility &&
-						` | Facility: ${filters.facility.replace(
-							/_/g,
-							" "
-						)}`}
-				</div>
-			)}
 
 			{/* Dashboard metrics */}
 			<DashboardMetrics filters={filters} />

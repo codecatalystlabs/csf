@@ -8,6 +8,8 @@ import {
 	LocationFilterValues,
 } from "@/components/filters/location-filter";
 import { BASE_URL } from "@/lib/api-config";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 
 export interface FilterBarProps {
 	restrictToUserRegion?: boolean;
@@ -73,10 +75,35 @@ export function FilterBar({
 	}, [filters, pathname, router, searchParams]);
 
 	return (
-		<LocationFilter
-			onFilterChange={handleFilterChange}
-			apiBaseUrl={BASE_URL}
-			restrictToUserRegion={restrictToUserRegion}
-		/>
+		<Card className="border border-yellow-100/50 bg-gradient-to-r from-yellow-50/30 to-transparent backdrop-blur-sm">
+			<CardContent className="p-4">
+				<div className="flex flex-col gap-4 md:flex-row md:items-end">
+					<div className="flex-1 space-y-1.5">
+						<Label
+							htmlFor="location-filter"
+							className="text-sm font-medium text-yellow-800"
+						>
+							Location Filter
+						</Label>
+						<LocationFilter
+							onFilterChange={handleFilterChange}
+							showCard={false}
+							restrictToUserRegion={restrictToUserRegion}
+							className="w-full"
+						/>
+					</div>
+					<div className="flex items-center gap-2">
+						<Button
+							variant="outline"
+							size="sm"
+							className="border-yellow-200 hover:bg-yellow-50 hover:text-yellow-800 hover:border-yellow-300 transition-all duration-200"
+							onClick={() => handleFilterChange({})}
+						>
+							Clear Filters
+						</Button>
+					</div>
+				</div>
+			</CardContent>
+		</Card>
 	);
 }

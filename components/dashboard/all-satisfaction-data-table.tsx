@@ -370,32 +370,7 @@ export function AllSatisfactionDataTable() {
 			</div>
 
 			{/* Display active filters */}
-			{(filters.region ||
-				filters.district ||
-				filters.facility ||
-				filters.timeFilter) && (
-				<div className="p-2 border rounded-md bg-blue-50 text-blue-700 text-sm mb-4">
-					<strong>Filters applied:</strong>
-					{filters.region &&
-						` Region: ${filters.region.replace(/_/g, " ")}`}
-					{filters.district &&
-						` | District: ${filters.district.replace(
-							/_/g,
-							" "
-						)}`}
-					{filters.facility &&
-						` | Facility: ${filters.facility.replace(
-							/_/g,
-							" "
-						)}`}
-					{filters.timeFilter &&
-						` | Time: ${filters.timeFilter.replace(
-							/_/g,
-							" "
-						)}`}
-				</div>
-			)}
-
+		
 			<Card>
 				<CardHeader>
 					<CardTitle>Client Feedback Responses</CardTitle>

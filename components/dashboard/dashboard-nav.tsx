@@ -52,7 +52,7 @@ const navItems: NavItem[] = [
 	// },
 	{
 		title: "Level",
-		href: "/dashboard/opportunities",
+		href: "/dashboard/level",
 		icon: Building2,
 	},
 	{
@@ -131,16 +131,16 @@ export function DashboardNav() {
 
 			<aside
 				className={cn(
-					"fixed inset-y-0 left-0 z-20 flex flex-col border-r bg-background transition-all duration-300 md:sticky",
+					"fixed inset-y-0 left-0 z-20 flex flex-col border-r bg-background/50 backdrop-blur-sm transition-all duration-300 md:sticky ",
 					isOpen ? "translate-x-0" : "-translate-x-full",
 					isCollapsed ? "md:w-[70px]" : "w-64"
 				)}
 			>
-				<ScrollArea className="flex-1 py-2">
+				<ScrollArea className="flex-1 py-2 scrollbar-thin scrollbar-track-background scrollbar-thumb-muted hover:scrollbar-thumb-muted-foreground">
 					<nav
 						className={cn(
-							"grid gap-1",
-							isCollapsed ? "px-1" : "px-2"
+							"grid gap-2",
+							isCollapsed ? "px-2" : "px-3"
 						)}
 					>
 						<TooltipProvider delayDuration={0}>
@@ -154,12 +154,13 @@ export function DashboardNav() {
 												: "ghost"
 										}
 										className={cn(
-											"flex h-10 items-center justify-start gap-2 px-4 text-sm font-medium",
+											"group relative flex h-12 items-center justify-start gap-3 rounded-xl px-4 text-sm font-medium transition-all duration-200",
 											pathname === item.href
-												? "bg-secondary"
-												: "hover:bg-accent",
+												? "bg-yellow-50/50 text-yellow-800 shadow-sm"
+												: "text-muted-foreground hover:bg-yellow-50/30 hover:text-yellow-800",
 											isCollapsed &&
-												"justify-center px-0"
+												"justify-center px-0",
+											"hover:scale-[1.01] active:scale-[0.99] motion-safe:transform motion-safe:transition"
 										)}
 										asChild
 									>
@@ -167,18 +168,43 @@ export function DashboardNav() {
 											href={item.href}
 											onClick={handleNavClick}
 										>
-											<item.icon className="h-5 w-5" />
+											<item.icon
+												className={cn(
+													"h-5 w-5 transition-colors",
+													pathname ===
+														item.href
+														? "text-yellow-600/80"
+														: "text-muted-foreground/70 group-hover:text-yellow-600/70"
+												)}
+											/>
 											{!isCollapsed && (
 												<>
-													<span>
+													<span
+														className={cn(
+															"transition-colors duration-200",
+															pathname ===
+																item.href
+																? "font-medium text-yellow-800"
+																: "group-hover:text-yellow-800"
+														)}
+													>
 														{
 															item.title
 														}
 													</span>
 													{pathname ===
 														item.href && (
-														<ChevronRight className="ml-auto h-4 w-4" />
+														<div className="absolute right-3 opacity-50">
+															<ChevronRight className="h-4 w-4 text-yellow-600/70" />
+														</div>
 													)}
+												</>
+											)}
+											{pathname ===
+												item.href && (
+												<>
+													<div className="absolute left-0 top-1/2 h-8 w-0.5 -translate-y-1/2 rounded-r-full bg-yellow-400/50" />
+													<div className="absolute inset-0 rounded-xl bg-gradient-to-r from-yellow-100/20 to-transparent opacity-30" />
 												</>
 											)}
 										</Link>
@@ -190,7 +216,10 @@ export function DashboardNav() {
 										<TooltipTrigger asChild>
 											{NavItem}
 										</TooltipTrigger>
-										<TooltipContent side="right">
+										<TooltipContent
+											side="right"
+											className="bg-background/80 backdrop-blur-sm"
+										>
 											{item.title}
 										</TooltipContent>
 									</Tooltip>
@@ -201,41 +230,6 @@ export function DashboardNav() {
 						</TooltipProvider>
 					</nav>
 				</ScrollArea>
-				<div
-					className={cn(
-						"border-t p-4",
-						isCollapsed && "flex justify-center p-2"
-					)}
-				>
-					{isCollapsed ? (
-						<TooltipProvider delayDuration={0}>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-										<Users className="h-4 w-4 text-primary" />
-									</div>
-								</TooltipTrigger>
-								<TooltipContent side="right">
-									John Doe (Admin)
-								</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
-					) : (
-						<div className="flex items-center gap-2">
-							<div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-								<Users className="h-4 w-4 text-primary" />
-							</div>
-							<div className="grid gap-0.5 text-sm">
-								<div className="font-medium">
-									John Doe
-								</div>
-								<div className="text-xs text-muted-foreground">
-									Admin
-								</div>
-							</div>
-						</div>
-					)}
-				</div>
 			</aside>
 		</>
 	);

@@ -23,6 +23,7 @@ import {
 	LabelList,
 	Line,
 	ReferenceLine,
+	ComposedChart,
 } from "recharts";
 import Image from "next/image";
 
@@ -427,7 +428,7 @@ export function DissatisfactionParetoChart({
 			factor: item.factor,
 			count: item.count,
 			percentage: item.percentage,
-			cumulative: item.cumulative_percentage,
+			cumulative_percentage: item.cumulative_percentage,
 			isTopFactor: index <= thresholdIndex,
 		})
 	);
@@ -526,8 +527,11 @@ export function DissatisfactionParetoChart({
 			<Card>
 				<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
 					<CardTitle className="text-xl font-medium text-center w-full">
-						Factors contributing to 80% of client
-						dissatisfaction
+						Client Dissatisfaction Pareto Analysis
+						<div className="text-sm font-normal text-gray-600 mt-1">
+							Factors Contributing to 80% of Client
+							Dissatisfaction
+						</div>
 					</CardTitle>
 					<Image
 						src="https://res.cloudinary.com/dacjwtf69/image/upload/v1747980762/flag_vykum0.jpg"
@@ -566,7 +570,7 @@ export function DissatisfactionParetoChart({
 							width="100%"
 							height="100%"
 						>
-							<BarChart
+							<ComposedChart
 								data={chartData}
 								margin={{
 									top: 30,
@@ -639,7 +643,10 @@ export function DissatisfactionParetoChart({
 												"Count",
 											];
 										}
-										if (name === "cumulative") {
+										if (
+											name ===
+											"cumulative_percentage"
+										) {
 											return [
 												`${
 													typeof value ===
@@ -674,9 +681,15 @@ export function DissatisfactionParetoChart({
 												key={`cell-${index}`}
 												fill={
 													entry.isTopFactor
-														? "#ff0000" // Bright red for top factors
+														? "#ef4444" // Brighter red for top factors
 														: "#3b82f6" // Blue for others
 												}
+												stroke={
+													entry.isTopFactor
+														? "#dc2626" // Darker red border
+														: "#2563eb" // Darker blue border
+												}
+												strokeWidth={1}
 											/>
 										)
 									)}
@@ -684,9 +697,9 @@ export function DissatisfactionParetoChart({
 										dataKey="count"
 										position="top"
 										style={{
-											fontSize: 12,
-											fill: "#000",
-											fontWeight: "bold",
+											fontSize: 11,
+											fill: "#374151",
+											fontWeight: "600",
 										}}
 									/>
 									{/* Replace old percentage LabelList with custom one */}
@@ -699,32 +712,33 @@ export function DissatisfactionParetoChart({
 								<Line
 									yAxisId="right"
 									type="monotone"
-									dataKey="cumulative"
-									stroke="#800000"
-									strokeWidth={2}
-									dot={{ fill: "#800000", r: 4 }}
-									activeDot={{ r: 6 }}
+									dataKey="cumulative_percentage"
+									stroke="#000000"
+									strokeWidth={3}
+									dot={{
+										fill: "#000000",
+										r: 5,
+										strokeWidth: 2,
+										stroke: "#ffffff",
+									}}
+									activeDot={{
+										r: 7,
+										stroke: "#000000",
+										strokeWidth: 2,
+										fill: "#ffffff",
+									}}
 									name="Cumulative %"
-								>
-									<LabelList
-										dataKey="cumulative"
-										position="top"
-										formatter={(value: any) =>
-											typeof value === "number"
-												? `${Math.round(
-														value
-												  )}%`
-												: `${value}%`
-										}
-										style={{
-											fontSize: 11,
-											fill: "#800000",
-											fontWeight: "bold",
-										}}
-									/>
-								</Line>
+									connectNulls={false}
+									label={{
+										position: "top",
+										fill: "#000000",
+										fontSize: 10,
+										fontWeight: "600",
+										formatter: (value: number) =>
+											`${value.toFixed(1)}%`,
+									}}
+								/>
 								{/* Reference lines for important thresholds */}
-								{/* Y-axis reference lines (horizontal) */}
 								{[
 									0, 10, 20, 30, 40, 50, 60, 70, 80,
 									90, 100,
@@ -736,15 +750,15 @@ export function DissatisfactionParetoChart({
 										stroke={
 											value === 80
 												? "#dc2626"
-												: "#9ca3af"
+												: "#e5e7eb"
 										}
 										strokeWidth={
-											value === 80 ? 1.5 : 1
+											value === 80 ? 2 : 1
 										}
 										strokeDasharray={
 											value === 80
-												? "3 3"
-												: "5 5"
+												? "5 5"
+												: "3 3"
 										}
 										label={
 											value % 20 === 0
@@ -761,29 +775,86 @@ export function DissatisfactionParetoChart({
 														fontWeight:
 															value ===
 															80
-																? "bold"
+																? "600"
 																: "normal",
 												  }
-												: undefined // Changed from null to undefined
+												: undefined
 										}
 									/>
 								))}
-							</BarChart>
+							</ComposedChart>
 						</ResponsiveContainer>
 					</div>
-					<div className="mt-4 pt-2 border-t">
-						<div className="flex items-center gap-6 text-sm">
-							<div className="flex items-center">
-								<div className="w-4 h-4 bg-red-500 rounded-sm mr-2"></div>
-								<span>Top factors (80% of issues)</span>
+					<div className="mt-4 pt-4 border-t">
+						<div className="space-y-3">
+							{/* Main legend */}
+							<div className="flex items-center justify-center gap-8 text-sm">
+								<div className="flex items-center">
+									<div className="w-4 h-4 bg-red-500 rounded-sm mr-2 border border-red-700"></div>
+									<span className="font-medium">
+										Top Contributors (80% of
+										issues)
+									</span>
+								</div>
+								<div className="flex items-center">
+									<div className="w-4 h-4 bg-blue-500 rounded-sm mr-2 border border-blue-700"></div>
+									<span>Other Factors</span>
+								</div>
+								<div className="flex items-center">
+									<div className="h-[3px] w-8 bg-black mr-2 rounded-full"></div>
+									<span className="font-medium">
+										Cumulative % (Pareto Line)
+									</span>
+								</div>
 							</div>
-							<div className="flex items-center">
-								<div className="w-4 h-4 bg-blue-500 rounded-sm mr-2"></div>
-								<span>Other factors</span>
+
+							{/* Pareto explanation */}
+							<div className="text-center text-xs text-gray-600 bg-gray-50 p-2 rounded-md">
+								<strong>
+									Pareto Principle (80/20 Rule):
+								</strong>{" "}
+								The red bars represent the few factors
+								that contribute to most dissatisfaction
+								issues. Focus on these high-impact areas
+								for maximum improvement.
 							</div>
-							<div className="flex items-center">
-								<div className="w-4 h-1 bg-red-900 mr-2"></div>
-								<span>Cumulative percentage</span>
+
+							{/* Summary stats */}
+							<div className="flex justify-center gap-6 text-sm">
+								<div className="text-center">
+									<div className="font-semibold text-gray-700">
+										Total Cases
+									</div>
+									<div className="text-lg font-bold text-gray-900">
+										{total.toLocaleString()}
+									</div>
+								</div>
+								<div className="text-center">
+									<div className="font-semibold text-red-600">
+										Top Factors
+									</div>
+									<div className="text-lg font-bold text-red-700">
+										{
+											chartData.filter(
+												(item) =>
+													item.isTopFactor
+											).length
+										}
+									</div>
+								</div>
+								<div className="text-center">
+									<div className="font-semibold text-blue-600">
+										Other Factors
+									</div>
+									<div className="text-lg font-bold text-blue-700">
+										{
+											chartData.filter(
+												(item) =>
+													!item.isTopFactor
+											).length
+										}
+									</div>
+								</div>
 							</div>
 						</div>
 					</div>

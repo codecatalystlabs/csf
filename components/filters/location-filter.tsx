@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import useSWR from "swr";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
 	Select,
 	SelectContent,
@@ -15,6 +15,7 @@ import { authFetcher } from "@/lib/api-utils";
 import { Loader2 } from "lucide-react";
 import { BASE_URL, LOCATION_ENDPOINTS } from "@/lib/api-config";
 import { useAuth } from "@/app/context/auth-context";
+import { cn } from "@/lib/utils";
 
 export interface LocationFilterValues {
 	region?: string;
@@ -45,9 +46,9 @@ export function LocationFilter({
 	const hasNationalAccess = user?.role === "national";
 
 	// Initialize with user's region if available and restriction is enabled
-	const [region, setRegion] = useState<string>("all_regions");
-	const [district, setDistrict] = useState<string>("all_districts");
-	const [facility, setFacility] = useState<string>("all_facilities");
+	const [selectedRegion, setSelectedRegion] = useState<string>("");
+	const [selectedDistrict, setSelectedDistrict] = useState<string>("");
+	const [selectedFacility, setSelectedFacility] = useState<string>("");
 
 	// Use refs to track previous values to prevent unnecessary updates
 	const prevFiltersRef = useRef<LocationFilterValues>({});
@@ -86,8 +87,8 @@ export function LocationFilter({
 		error: districtsError,
 		isLoading: districtsLoading,
 	} = useSWR(
-		region && region !== "all_regions"
-			? LOCATION_ENDPOINTS.getDistrictsForRegion(region)
+		selectedRegion && selectedRegion !== "all_regions"
+			? LOCATION_ENDPOINTS.getDistrictsForRegion(selectedRegion)
 			: null,
 		authFetcher
 	);
@@ -106,8 +107,8 @@ export function LocationFilter({
 		error: facilitiesError,
 		isLoading: facilitiesLoading,
 	} = useSWR(
-		district && district !== "all_districts"
-			? LOCATION_ENDPOINTS.getFacilitiesForDistrict(district)
+		selectedDistrict && selectedDistrict !== "all_districts"
+			? LOCATION_ENDPOINTS.getFacilitiesForDistrict(selectedDistrict)
 			: null,
 		authFetcher
 	);
@@ -127,40 +128,49 @@ export function LocationFilter({
 		if (
 			restrictToUserRegion &&
 			user?.region &&
-			region === "all_regions" &&
+			selectedRegion === "all_regions" &&
 			!hasNationalAccess
 		) {
-			setRegion(user.region);
+			setSelectedRegion(user.region);
 		}
-	}, [user, restrictToUserRegion, region, hasNationalAccess]);
+	}, [user, restrictToUserRegion, selectedRegion, hasNationalAccess]);
 
 	// Memoize the handleRegionChange function to prevent unnecessary re-renders
 	const handleRegionChange = useCallback((value: string) => {
-		setRegion(value);
+		setSelectedRegion(value);
 		if (value === "all_regions") {
-			setDistrict("all_districts");
+			setSelectedDistrict("all_districts");
 		}
 	}, []);
 
 	// Memoize the handleDistrictChange function
 	const handleDistrictChange = useCallback((value: string) => {
-		setDistrict(value);
+		setSelectedDistrict(value);
 		if (value === "all_districts") {
-			setFacility("all_facilities");
+			setSelectedFacility("all_facilities");
 		}
 	}, []);
 
 	// Memoize the handleFacilityChange function
 	const handleFacilityChange = useCallback((value: string) => {
-		setFacility(value);
+		setSelectedFacility(value);
 	}, []);
 
 	// Apply filters when changed, with reference equality check
 	useEffect(() => {
 		const newFilters = {
-			region: region !== "all_regions" ? region : undefined,
-			district: district !== "all_districts" ? district : undefined,
-			facility: facility !== "all_facilities" ? facility : undefined,
+			region:
+				selectedRegion !== "all_regions"
+					? selectedRegion
+					: undefined,
+			district:
+				selectedDistrict !== "all_districts"
+					? selectedDistrict
+					: undefined,
+			facility:
+				selectedFacility !== "all_facilities"
+					? selectedFacility
+					: undefined,
 		};
 
 		// Only update if filters have actually changed
@@ -172,173 +182,178 @@ export function LocationFilter({
 			prevFiltersRef.current = newFilters;
 			onFilterChange(newFilters);
 		}
-	}, [region, district, facility, onFilterChange]);
+	}, [selectedRegion, selectedDistrict, selectedFacility, onFilterChange]);
 
 	// Memoize the clear filters handler
 	const handleClearFilters = useCallback(() => {
 		// If user has a restricted region and no national access, only clear district and facility
 		if (restrictToUserRegion && user?.region && !hasNationalAccess) {
-			setRegion(user.region);
-			setDistrict("all_districts");
-			setFacility("all_facilities");
+			setSelectedRegion(user.region);
+			setSelectedDistrict("all_districts");
+			setSelectedFacility("all_facilities");
 		} else {
-			setRegion("all_regions");
-			setDistrict("all_districts");
-			setFacility("all_facilities");
+			setSelectedRegion("all_regions");
+			setSelectedDistrict("all_districts");
+			setSelectedFacility("all_facilities");
 		}
 	}, [restrictToUserRegion, user, hasNationalAccess]);
 
-	const filtersContent = (
-		<div className={`flex flex-wrap gap-4 items-center ${className}`}>
-			<div className="flex-1 min-w-[200px]">
-				<Select
-					value={region}
-					onValueChange={handleRegionChange}
-					disabled={regionDisabled}
-				>
-					<SelectTrigger className="w-full">
-						<SelectValue placeholder="All Regions" />
-					</SelectTrigger>
-					<SelectContent>
-						{(!restrictToUserRegion || hasNationalAccess) && (
-							<SelectItem value="all_regions">
-								All Regions
-							</SelectItem>
-						)}
-						{regionsLoading ? (
-							<div className="flex items-center justify-center py-2">
-								<Loader2 className="h-4 w-4 animate-spin mr-2" />
-								<span>Loading...</span>
-							</div>
-						) : regionsError ? (
-							<div className="py-2 text-center text-red-500 text-sm">
-								Error loading regions
-							</div>
-						) : regions && regions.length > 0 ? (
-							regions.map(
-								(r: { id: string; name: string }) => (
-									<SelectItem
-										key={r.id}
-										value={r.id}
-									>
-										{r.name}
-									</SelectItem>
-								)
-							)
-						) : (
-							<div className="py-2 text-center text-sm text-gray-500">
-								No regions available
-							</div>
-						)}
-					</SelectContent>
-				</Select>
-			</div>
-
-			<div className="flex-1 min-w-[200px]">
-				<Select
-					value={district}
-					onValueChange={handleDistrictChange}
-					disabled={region === "all_regions"}
-				>
-					<SelectTrigger className="w-full">
-						<SelectValue placeholder="All Districts" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all_districts">
-							All Districts
-						</SelectItem>
-						{districtsLoading ? (
-							<div className="flex items-center justify-center py-2">
-								<Loader2 className="h-4 w-4 animate-spin mr-2" />
-								<span>Loading...</span>
-							</div>
-						) : districtsError ? (
-							<div className="py-2 text-center text-red-500 text-sm">
-								Error loading districts
-							</div>
-						) : districts && districts.length > 0 ? (
-							districts.map(
-								(d: { id: string; name: string }) => (
-									<SelectItem
-										key={d.id}
-										value={d.id}
-									>
-										{d.name}
-									</SelectItem>
-								)
-							)
-						) : (
-							<div className="py-2 text-center text-sm text-gray-500">
-								No districts available
-							</div>
-						)}
-					</SelectContent>
-				</Select>
-			</div>
-
-			<div className="flex-1 min-w-[200px]">
-				<Select
-					value={facility}
-					onValueChange={handleFacilityChange}
-					disabled={district === "all_districts"}
-				>
-					<SelectTrigger className="w-full">
-						<SelectValue placeholder="All Facilities" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all_facilities">
-							All Facilities
-						</SelectItem>
-						{facilitiesLoading ? (
-							<div className="flex items-center justify-center py-2">
-								<Loader2 className="h-4 w-4 animate-spin mr-2" />
-								<span>Loading...</span>
-							</div>
-						) : facilitiesError ? (
-							<div className="py-2 text-center text-red-500 text-sm">
-								Error loading facilities
-							</div>
-						) : facilities && facilities.length > 0 ? (
-							facilities.map(
-								(f: { id: string; name: string }) => (
-									<SelectItem
-										key={f.id}
-										value={f.id}
-									>
-										{f.name}
-									</SelectItem>
-								)
-							)
-						) : (
-							<div className="py-2 text-center text-sm text-gray-500">
-								No facilities available
-							</div>
-						)}
-					</SelectContent>
-				</Select>
-			</div>
-
-			<Button
-				variant="outline"
-				onClick={handleClearFilters}
-				size="sm"
-				className="whitespace-nowrap"
+	const FilterContent = (
+		<div className={cn("flex flex-wrap gap-3", className)}>
+			<Select
+				value={selectedRegion}
+				onValueChange={(value) => {
+					setSelectedRegion(value);
+					setSelectedDistrict("all_districts");
+					setSelectedFacility("all_facilities");
+					onFilterChange({
+						region:
+							value === "all_regions" ? undefined : value,
+					});
+				}}
 			>
-				Clear Filters
-			</Button>
+				<SelectTrigger
+					className={cn(
+						"w-[180px] border-yellow-100 bg-white/50 hover:bg-yellow-50 transition-colors",
+						selectedRegion &&
+							selectedRegion !== "all_regions" &&
+							"border-yellow-200 ring-1 ring-yellow-100"
+					)}
+				>
+					<SelectValue placeholder="Select Region" />
+				</SelectTrigger>
+				<SelectContent className="max-h-[300px]">
+					<SelectItem value="all_regions">
+						All Regions
+					</SelectItem>
+					{regions.map((region) => (
+						<SelectItem
+							key={region.id}
+							value={region.id}
+							className="hover:bg-yellow-50 focus:bg-yellow-50 cursor-pointer"
+						>
+							{region.name.replace(/_/g, " ")}
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
+
+			<Select
+				value={selectedDistrict}
+				onValueChange={(value) => {
+					setSelectedDistrict(value);
+					setSelectedFacility("all_facilities");
+					onFilterChange({
+						region:
+							selectedRegion === "all_regions"
+								? undefined
+								: selectedRegion,
+						district:
+							value === "all_districts"
+								? undefined
+								: value,
+					});
+				}}
+				disabled={
+					!selectedRegion || selectedRegion === "all_regions"
+				}
+			>
+				<SelectTrigger
+					className={cn(
+						"w-[180px] border-yellow-100 bg-white/50 hover:bg-yellow-50 transition-colors",
+						selectedDistrict &&
+							selectedDistrict !== "all_districts" &&
+							"border-yellow-200 ring-1 ring-yellow-100",
+						(!selectedRegion ||
+							selectedRegion === "all_regions") &&
+							"opacity-50"
+					)}
+				>
+					<SelectValue placeholder="Select District" />
+				</SelectTrigger>
+				<SelectContent className="max-h-[300px]">
+					<SelectItem value="all_districts">
+						All Districts
+					</SelectItem>
+					{districts.map((district) => (
+						<SelectItem
+							key={district.id}
+							value={district.id}
+							className="hover:bg-yellow-50 focus:bg-yellow-50 cursor-pointer"
+						>
+							{district.name.replace(/_/g, " ")}
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
+
+			<Select
+				value={selectedFacility}
+				onValueChange={(value) => {
+					setSelectedFacility(value);
+					onFilterChange({
+						region:
+							selectedRegion === "all_regions"
+								? undefined
+								: selectedRegion,
+						district:
+							selectedDistrict === "all_districts"
+								? undefined
+								: selectedDistrict,
+						facility:
+							value === "all_facilities"
+								? undefined
+								: value,
+					});
+				}}
+				disabled={
+					!selectedDistrict ||
+					selectedDistrict === "all_districts"
+				}
+			>
+				<SelectTrigger
+					className={cn(
+						"w-[180px] border-yellow-100 bg-white/50 hover:bg-yellow-50 transition-colors",
+						selectedFacility &&
+							selectedFacility !== "all_facilities" &&
+							"border-yellow-200 ring-1 ring-yellow-100",
+						(!selectedDistrict ||
+							selectedDistrict === "all_districts") &&
+							"opacity-50"
+					)}
+				>
+					<SelectValue placeholder="Select Facility" />
+				</SelectTrigger>
+				<SelectContent className="max-h-[300px]">
+					<SelectItem value="all_facilities">
+						All Facilities
+					</SelectItem>
+					{facilities.map((facility) => (
+						<SelectItem
+							key={facility.id}
+							value={facility.id}
+							className="hover:bg-yellow-50 focus:bg-yellow-50 cursor-pointer"
+						>
+							{facility.name.replace(/_/g, " ")}
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
 		</div>
 	);
 
-	// Conditionally wrap in a Card component
 	if (showCard) {
 		return (
-			<Card className="mb-4">
-				<CardContent className="pt-4 pb-3">
-					{filtersContent}
-				</CardContent>
+			<Card className="border border-yellow-100/50 bg-gradient-to-r from-yellow-50/30 to-transparent">
+				<CardHeader>
+					<CardTitle className="text-lg font-medium text-yellow-800">
+						Location Filter
+					</CardTitle>
+				</CardHeader>
+				<CardContent>{FilterContent}</CardContent>
 			</Card>
 		);
 	}
 
-	return filtersContent;
+	return FilterContent;
 }

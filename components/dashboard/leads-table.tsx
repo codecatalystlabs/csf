@@ -50,11 +50,23 @@ import { FilterBar } from "@/components/dashboard/filter-bar";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
+type TimePeriod =
+	| "today"
+	| "this_month"
+	| "last_month"
+	| "cumulative"
+	| "custom_year_range"
+	| "last_year"
+	| "this_year"
+	| "current_quarter"
+	| "previous_quarter";
+
 interface ChartProps {
 	filters?: LocationFilterValues;
+	timeFilter?: TimePeriod;
 }
 
-function FacilityLevelBarChart({ filters }: ChartProps) {
+function FacilityLevelBarChart({ filters, timeFilter }: ChartProps) {
 	// Get user from auth context
 	const { user } = useAuth();
 
@@ -62,6 +74,13 @@ function FacilityLevelBarChart({ filters }: ChartProps) {
 	const endpoint = useMemo(() => {
 		const baseUrl = `${BASE_URL}/level`;
 		const params = new URLSearchParams();
+
+		// Add time filter parameter
+		if (timeFilter) {
+			params.append("time_filter", timeFilter);
+		} else {
+			params.append("time_filter", "cumulative");
+		}
 
 		// If region filter is set, use that first
 		if (filters?.region) {
@@ -99,11 +118,13 @@ function FacilityLevelBarChart({ filters }: ChartProps) {
 			"FacilityLevelChart Endpoint:",
 			fullEndpoint,
 			"Filters:",
-			filters
+			filters,
+			"TimeFilter:",
+			timeFilter
 		);
 
 		return fullEndpoint;
-	}, [filters, user?.region]);
+	}, [filters, user?.region, timeFilter]);
 
 	const { data, error, isLoading } = useSWR(endpoint, fetcher);
 
@@ -122,19 +143,12 @@ function FacilityLevelBarChart({ filters }: ChartProps) {
 		value: Number(data.data[i]),
 	}));
 
-	// Vibrant color palette
-	const palette = [
-		"#22c55e", // green
-		"#ef4444", // red
-		"#3b82f6", // blue
-		"#f97316", // orange
-		"#a21caf", // purple
-		"#facc15", // yellow
-		"#0ea5e9", // cyan
-		"#eab308", // gold
-		"#6366f1", // indigo
-		"#14b8a6", // teal
-	];
+	// Color logic based on satisfaction rate
+	const getSatisfactionColor = (value: number) => {
+		if (value >= 80) return "#22c55e"; // Green for satisfied (80-100%)
+		if (value >= 50) return "#eab308"; // Yellow for neutral (50-80%)
+		return "#ef4444"; // Red for dissatisfied (0-50%)
+	};
 
 	return (
 		<ResponsiveContainer
@@ -186,7 +200,7 @@ function FacilityLevelBarChart({ filters }: ChartProps) {
 						) => (
 							<Cell
 								key={`cell-${idx}`}
-								fill={palette[idx % palette.length]}
+								fill={getSatisfactionColor(entry.value)}
 							/>
 						)
 					)}
@@ -196,7 +210,7 @@ function FacilityLevelBarChart({ filters }: ChartProps) {
 	);
 }
 
-function ServiceUnitBarChart({ filters }: ChartProps) {
+function ServiceUnitBarChart({ filters, timeFilter }: ChartProps) {
 	// Get user from auth context
 	const { user } = useAuth();
 
@@ -204,6 +218,13 @@ function ServiceUnitBarChart({ filters }: ChartProps) {
 	const endpoint = useMemo(() => {
 		const baseUrl = `${BASE_URL}/service_point`;
 		const params = new URLSearchParams();
+
+		// Add time filter parameter
+		if (timeFilter) {
+			params.append("time_filter", timeFilter);
+		} else {
+			params.append("time_filter", "cumulative");
+		}
 
 		// If region filter is set, use that first
 		if (filters?.region) {
@@ -241,11 +262,13 @@ function ServiceUnitBarChart({ filters }: ChartProps) {
 			"ServiceUnitChart Endpoint:",
 			fullEndpoint,
 			"Filters:",
-			filters
+			filters,
+			"TimeFilter:",
+			timeFilter
 		);
 
 		return fullEndpoint;
-	}, [filters, user?.region]);
+	}, [filters, user?.region, timeFilter]);
 
 	const { data, error, isLoading } = useSWR(endpoint, fetcher);
 
@@ -262,19 +285,14 @@ function ServiceUnitBarChart({ filters }: ChartProps) {
 		name: label.replace(/_/g, " "),
 		value: Number(data.data[i]),
 	}));
-	// Use the same palette as above
-	const palette = [
-		"#22c55e", // green
-		"#facc15", // yellow
-		"#ef4444", // red
-		"#3b82f6", // blue
-		"#a21caf", // purple
-		"#f97316", // orange
-		"#0ea5e9", // cyan
-		"#eab308", // gold
-		"#6366f1", // indigo
-		"#14b8a6", // teal
-	];
+
+	// Color logic based on satisfaction rate
+	const getSatisfactionColor = (value: number) => {
+		if (value >= 80) return "#22c55e"; // Green for satisfied (80-100%)
+		if (value >= 50) return "#eab308"; // Yellow for neutral (50-80%)
+		return "#ef4444"; // Red for dissatisfied (0-50%)
+	};
+
 	return (
 		<ResponsiveContainer
 			width="100%"
@@ -304,10 +322,13 @@ function ServiceUnitBarChart({ filters }: ChartProps) {
 					fill="#888"
 				>
 					{chartData.map(
-						(entry: { value: number }, idx: number) => (
+						(
+							entry: { name: string; value: number },
+							idx: number
+						) => (
 							<Cell
 								key={`cell-service-${idx}`}
-								fill={palette[idx % palette.length]}
+								fill={getSatisfactionColor(entry.value)}
 							/>
 						)
 					)}
@@ -317,9 +338,24 @@ function ServiceUnitBarChart({ filters }: ChartProps) {
 	);
 }
 
+// Add the UgandanFlagRibbon component
+function UgandanFlagRibbon() {
+	return (
+		<div className="w-full">
+			<div className="h-1 bg-[#000000] w-full"></div>
+			<div className="h-1 bg-[#FCDC3B] w-full"></div>
+			<div className="h-1 bg-[#DA291C] w-full"></div>
+			<div className="h-1 bg-[#000000] w-full"></div>
+			<div className="h-1 bg-[#FCDC3B] w-full"></div>
+			<div className="h-1 bg-[#DA291C] w-full"></div>
+		</div>
+	);
+}
+
 export function LeadsTable() {
 	const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
 	const [filters, setFilters] = useState<LocationFilterValues>({});
+	const [timePeriod, setTimePeriod] = useState<TimePeriod>("this_month");
 
 	const handleFilterChange = useCallback(
 		(newFilters: LocationFilterValues) => {
@@ -328,6 +364,10 @@ export function LeadsTable() {
 		},
 		[]
 	);
+
+	const handlePeriodChange = (period: TimePeriod) => {
+		setTimePeriod(period);
+	};
 
 	const toggleSelectLead = (id: string) => {
 		if (selectedLeads.includes(id)) {
@@ -359,24 +399,91 @@ export function LeadsTable() {
 				onFilterChange={handleFilterChange}
 			/>
 
-			{/* Display active filters */}
-			{(filters.region || filters.district || filters.facility) && (
-				<div className="p-2 border rounded-md bg-blue-50 text-blue-700 text-sm mb-4">
-					<strong>Filters applied:</strong>
-					{filters.region &&
-						` Region: ${filters.region.replace(/_/g, " ")}`}
-					{filters.district &&
-						` | District: ${filters.district.replace(
-							/_/g,
-							" "
-						)}`}
-					{filters.facility &&
-						` | Facility: ${filters.facility.replace(
-							/_/g,
-							" "
-						)}`}
-				</div>
-			)}
+			{/* Time Filter Buttons */}
+			<div className="flex flex-wrap gap-2 items-center">
+				<Button
+					variant={
+						timePeriod === "today" ? "default" : "outline"
+					}
+					onClick={() => handlePeriodChange("today")}
+					size="sm"
+				>
+					Today
+				</Button>
+				<Button
+					variant={
+						timePeriod === "this_month"
+							? "default"
+							: "outline"
+					}
+					onClick={() => handlePeriodChange("this_month")}
+					size="sm"
+				>
+					This Month
+				</Button>
+				<Button
+					variant={
+						timePeriod === "current_quarter"
+							? "default"
+							: "outline"
+					}
+					onClick={() => handlePeriodChange("current_quarter")}
+					size="sm"
+				>
+					Current Quarter
+				</Button>
+				<Button
+					variant={
+						timePeriod === "previous_quarter"
+							? "default"
+							: "outline"
+					}
+					onClick={() => handlePeriodChange("previous_quarter")}
+					size="sm"
+				>
+					Previous Quarter
+				</Button>
+				<Button
+					variant={
+						timePeriod === "this_year" ? "default" : "outline"
+					}
+					onClick={() => handlePeriodChange("this_year")}
+					size="sm"
+				>
+					This Year
+				</Button>
+				<Button
+					variant={
+						timePeriod === "last_month"
+							? "default"
+							: "outline"
+					}
+					onClick={() => handlePeriodChange("last_month")}
+					size="sm"
+				>
+					Last Month
+				</Button>
+				<Button
+					variant={
+						timePeriod === "last_year" ? "default" : "outline"
+					}
+					onClick={() => handlePeriodChange("last_year")}
+					size="sm"
+				>
+					Last Year
+				</Button>
+				<Button
+					variant={
+						timePeriod === "cumulative"
+							? "default"
+							: "outline"
+					}
+					onClick={() => handlePeriodChange("cumulative")}
+					size="sm"
+				>
+					Cumulative
+				</Button>
+			</div>
 
 			<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 				<Card>
@@ -386,7 +493,10 @@ export function LeadsTable() {
 						</CardTitle>
 					</CardHeader>
 					<CardContent>
-						<FacilityLevelBarChart filters={filters} />
+						<FacilityLevelBarChart
+							filters={filters}
+							timeFilter={timePeriod}
+						/>
 					</CardContent>
 				</Card>
 				<Card>
@@ -396,7 +506,10 @@ export function LeadsTable() {
 						</CardTitle>
 					</CardHeader>
 					<CardContent>
-						<ServiceUnitBarChart filters={filters} />
+						<ServiceUnitBarChart
+							filters={filters}
+							timeFilter={timePeriod}
+						/>
 					</CardContent>
 				</Card>
 			</div>

@@ -554,7 +554,9 @@ export function DashboardMetrics({
 					ref={dashboardRef}
 					className="p-4  bg-white rounded-md shadow"
 				>
-					<SatisfactionGaugeChart filters={filters} />
+					<SatisfactionGaugeChart
+						filters={{ ...filters, timeFilter: timePeriod }}
+					/>
 					{/* Metric cards */}
 					<div className="grid mt-4 grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4 mb-4">
 						{/* <MetricsCard
@@ -590,9 +592,7 @@ export function DashboardMetrics({
 						/>
 						<MetricsCard
 							title="Facilities"
-							value={
-								periodData.total_facilities ?? 0
-							}
+							value={periodData.total_facilities ?? 0}
 							icon={AlertTriangle}
 							trend={
 								periodData.total_facilities > 0
