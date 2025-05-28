@@ -14,6 +14,7 @@ import {
 	Bar,
 	ComposedChart,
 	TooltipProps,
+	Cell,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DASHBOARD_ENDPOINTS } from "@/lib/api-config";
@@ -274,17 +275,17 @@ export function SatisfactionTrendChart({
 								yAxisId="right"
 								dataKey="clientCount"
 								name="Client Count"
-								fill="#eab308"
-								opacity={0.8}
 								barSize={20}
-							/>
+							>
+								{chartData.map((entry, index) => {
+									let color = "#22c55e"; // green for >80
+									if (entry.satisfaction < 50) color = "#ef4444"; // red
+									else if (entry.satisfaction < 80) color = "#fde047"; // light yellow
+									return <Cell key={`cell-${index}`} fill={color} />;
+								})}
+							</Bar>
 						</ComposedChart>
 					</ResponsiveContainer>
-				</div>
-				<div className="text-xs text-gray-500 mt-2">
-					Note: Each month's satisfaction rate is calculated from
-					a different number of client responses (shown as yellow
-					bars).
 				</div>
 			</CardContent>
 		</Card>

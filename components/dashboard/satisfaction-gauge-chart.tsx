@@ -205,7 +205,7 @@ export function SatisfactionGaugeChart({ filters }: Props) {
 							<path
 								d="M 150,50 A 100,100 0 0,1 215,84"
 								fill="none"
-								stroke="rgb(234, 179, 8)"
+								stroke="rgb(253, 224, 71)"
 								strokeWidth="30"
 								strokeLinecap="round"
 							/>
@@ -242,7 +242,7 @@ export function SatisfactionGaugeChart({ filters }: Props) {
 								cx="150"
 								cy="50"
 								r="15"
-								fill="rgb(234, 179, 8)"
+								fill="rgb(253, 224, 71)"
 							/>
 							<text
 								x="150"
@@ -336,7 +336,7 @@ export function SatisfactionGaugeChart({ filters }: Props) {
 								</div>
 								<div className="flex items-center gap-1">
 									{/* STRONGER YELLOW */}
-									<div className="w-4 h-4 rounded-full bg-yellow-500"></div>
+									<div className="w-4 h-4 rounded-full bg-yellow-200"></div>
 									<span>Neutral</span>
 									<span className="text-xs text-gray-500">
 										(50-80%)

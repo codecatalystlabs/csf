@@ -556,34 +556,35 @@ export function DashboardMetrics({
 				>
 					<div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
 						{/* Metric cards */}
-						<div className="lg:col-span-2 flex flex-col gap-1.5">
+						<div className="lg:col-span-3 flex flex-col gap-1.5">
 							<MetricsCard
 								title="Total Clients"
 								value={periodData.total_clients ?? 0}
 								icon={Users}
 								isLoading={isLoading}
-								className="h-24 py-1 px-2"
+								className="h-24 py-1"
 							/>
 							<MetricsCard
 								title="Satisfied Clients"
 								value={periodData.satisfied_clients ?? 0}
 								icon={Smile}
+								description={`${satisfactionPercentage}% satisfaction rate`}
 								isLoading={isLoading}
-								className="h-24 py-1 px-2"
+								className="h-24 py-1"
 							/>
 							<MetricsCard
 								title="Male Entries"
 								value={periodData.male_entries ?? 0}
 								icon={UserCircle}
 								isLoading={isLoading}
-								className="h-24 py-1 px-2"
+								className="h-24 py-1"
 							/>
 							<MetricsCard
 								title="Female Entries"
 								value={periodData.female_entries ?? 0}
 								icon={UserRound}
 								isLoading={isLoading}
-								className="h-24 py-1 px-2"
+								className="h-24 py-1"
 							/>
 							<MetricsCard
 								title="Facilities"
@@ -594,16 +595,21 @@ export function DashboardMetrics({
 										? "up"
 										: "neutral"
 								}
+								trendValue={
+									periodData.total_facilities > 0
+										? "Requires attention"
+										: "No issues reported"
+								}
 								isLoading={isLoading}
-								className="h-24 py-1 px-2"
+								className="h-24 py-0"
 							/>
 						</div>
-						<div className="lg:col-span-3 flex items-center justify-center h-[calc(5*6rem+4*0.375rem)]">
+						<div className="lg:col-span-3 flex items-center justify-center">
 							<SatisfactionGaugeChart
 								filters={{ ...filters, timeFilter: timePeriod }}
 							/>
 						</div>
-						<div className="lg:col-span-7 h-[calc(5*6rem+4*0.375rem)]">
+						<div className="lg:col-span-6">
 							<SatisfactionTrendChart filters={filters} />
 						</div>
 					</div>
