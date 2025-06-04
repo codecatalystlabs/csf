@@ -278,9 +278,10 @@ export function SatisfactionTrendChart({
 								barSize={20}
 							>
 								{chartData.map((entry, index) => {
-									let color = "#22c55e"; // green for >80
+									let color;
 									if (entry.satisfaction < 50) color = "#ef4444"; // red
-									else if (entry.satisfaction < 80) color = "#fde047"; // light yellow
+									else if (entry.satisfaction < 80) color = "#fde047"; // yellow
+									else color = "#22c55e"; // green
 									return <Cell key={`cell-${index}`} fill={color} />;
 								})}
 							</Bar>

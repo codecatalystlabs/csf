@@ -50,6 +50,9 @@ import {
 	LineChart,
 	Line,
 } from "recharts";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -62,7 +65,8 @@ type TimePeriod =
 	| "this_year"
 	| "current_quarter"
 	| "previous_quarter"
-	| "last_12_months";
+	| "last_12_months"
+	| "by_date";
 
 interface SatisfactionComponentProps {
 	filters?: LocationFilterValues;
@@ -411,9 +415,39 @@ function SatisfactionSummaryTable({
 	);
 }
 
+const months = [
+	{ value: "01", label: "January" },
+	{ value: "02", label: "February" },
+	{ value: "03", label: "March" },
+	{ value: "04", label: "April" },
+	{ value: "05", label: "May" },
+	{ value: "06", label: "June" },
+	{ value: "07", label: "July" },
+	{ value: "08", label: "August" },
+	{ value: "09", label: "September" },
+	{ value: "10", label: "October" },
+	{ value: "11", label: "November" },
+	{ value: "12", label: "December" },
+];
+const quarters = [
+	{ value: "Q1", label: "Q1 (Jan-Mar)" },
+	{ value: "Q2", label: "Q2 (Apr-Jun)" },
+	{ value: "Q3", label: "Q3 (Jul-Sep)" },
+	{ value: "Q4", label: "Q4 (Oct-Dec)" },
+];
+const generateYears = () => {
+	const currentYear = new Date().getFullYear();
+	const years = [];
+	for (let year = 2020; year <= currentYear; year++) {
+		years.push(year);
+	}
+	return years;
+};
+const availableYears = generateYears();
+
 export function SatisfactionTrendsWithFilters() {
 	const [filters, setFilters] = useState<LocationFilterValues>({});
-	const [timePeriod, setTimePeriod] = useState<TimePeriod>("this_month");
+	const [timePeriod, setTimePeriod] = useState<TimePeriod>("last_12_months");
 
 	const handleFilterChange = useCallback(
 		(newFilters: LocationFilterValues) => {
@@ -582,6 +616,10 @@ export function SatisfactionTrendsWithFilters() {
 export function AccountsTable() {
 	const [filters, setFilters] = useState<LocationFilterValues>({});
 	const [timePeriod, setTimePeriod] = useState<TimePeriod>("this_month");
+	const [selectedMonth, setSelectedMonth] = useState("");
+	const [selectedQuarter, setSelectedQuarter] = useState("");
+	const [selectedYear, setSelectedYear] = useState("");
+	const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
 
 	const handleFilterChange = useCallback(
 		(newFilters: LocationFilterValues) => {
@@ -601,101 +639,111 @@ export function AccountsTable() {
 				onFilterChange={handleFilterChange}
 			/>
 
-			{/* Time Filter Buttons */}
-			<div className="flex flex-wrap gap-2 items-center">
+			{/* Time Filters UI */}
+			<div className="flex flex-wrap gap-2 items-center mb-4">
 				<Button
-					variant={
-						timePeriod === "today" ? "default" : "outline"
-					}
-					onClick={() => handlePeriodChange("today")}
+					variant={timePeriod === "today" ? "default" : "outline"}
+					onClick={() => {
+						setTimePeriod("today");
+						setSelectedYear("");
+						setSelectedMonth("");
+						setSelectedQuarter("");
+						setSelectedDate(undefined);
+					}}
 					size="sm"
 				>
 					Today
 				</Button>
+				{/* Month Dropdown (enabled if year is selected) */}
+				<Select value={selectedMonth} onValueChange={(value) => {
+					setSelectedMonth(value);
+					setTimePeriod("this_month");
+					setSelectedQuarter("");
+					setSelectedDate(undefined);
+				}} disabled={!selectedYear}>
+					<SelectTrigger className="w-[120px]">
+						<SelectValue placeholder="Month" />
+					</SelectTrigger>
+					<SelectContent>
+						{months.map((month) => (
+							<SelectItem key={month.value} value={month.value}>{month.label}</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+				{/* Quarter Dropdown (enabled if year is selected) */}
+				<Select value={selectedQuarter} onValueChange={(value) => {
+					setSelectedQuarter(value);
+					setTimePeriod("current_quarter");
+					setSelectedMonth("");
+					setSelectedDate(undefined);
+				}} disabled={!selectedYear || !!selectedMonth}>
+					<SelectTrigger className="w-[120px]">
+						<SelectValue placeholder="Quarter" />
+					</SelectTrigger>
+					<SelectContent>
+						{quarters.map((q) => (
+							<SelectItem key={q.value} value={q.value}>{q.label}</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+				{/* Year Dropdown */}
+				<Select value={selectedYear} onValueChange={(value) => {
+					setSelectedYear(value);
+					setTimePeriod("this_year");
+					setSelectedMonth("");
+					setSelectedQuarter("");
+					setSelectedDate(undefined);
+				}}>
+					<SelectTrigger className="w-[120px]">
+						<SelectValue placeholder="Year" />
+					</SelectTrigger>
+					<SelectContent>
+						{availableYears.map((year) => (
+							<SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
 				<Button
-					variant={
-						timePeriod === "this_month"
-							? "default"
-							: "outline"
-					}
-					onClick={() => handlePeriodChange("this_month")}
-					size="sm"
-				>
-					This Month
-				</Button>
-				<Button
-					variant={
-						timePeriod === "current_quarter"
-							? "default"
-							: "outline"
-					}
-					onClick={() => handlePeriodChange("current_quarter")}
-					size="sm"
-				>
-					Current Quarter
-				</Button>
-				<Button
-					variant={
-						timePeriod === "previous_quarter"
-							? "default"
-							: "outline"
-					}
-					onClick={() => handlePeriodChange("previous_quarter")}
-					size="sm"
-				>
-					Previous Quarter
-				</Button>
-				<Button
-					variant={
-						timePeriod === "this_year" ? "default" : "outline"
-					}
-					onClick={() => handlePeriodChange("this_year")}
-					size="sm"
-				>
-					This Year
-				</Button>
-				<Button
-					variant={
-						timePeriod === "last_month"
-							? "default"
-							: "outline"
-					}
-					onClick={() => handlePeriodChange("last_month")}
-					size="sm"
-				>
-					Last Month
-				</Button>
-				<Button
-					variant={
-						timePeriod === "last_year" ? "default" : "outline"
-					}
-					onClick={() => handlePeriodChange("last_year")}
-					size="sm"
-				>
-					Last Year
-				</Button>
-				<Button
-					variant={
-						timePeriod === "last_12_months"
-							? "default"
-							: "outline"
-					}
-					onClick={() => handlePeriodChange("last_12_months")}
-					size="sm"
-				>
-					Last 12 Months
-				</Button>
-				<Button
-					variant={
-						timePeriod === "cumulative"
-							? "default"
-							: "outline"
-					}
-					onClick={() => handlePeriodChange("cumulative")}
+					variant={timePeriod === "cumulative" ? "default" : "outline"}
+					onClick={() => {
+						setTimePeriod("cumulative");
+						setSelectedYear("");
+						setSelectedMonth("");
+						setSelectedQuarter("");
+						setSelectedDate(undefined);
+					}}
 					size="sm"
 				>
 					Cumulative
 				</Button>
+				{/* Calendar for date selection as a popover */}
+				<Popover>
+					<PopoverTrigger asChild>
+						<Button
+							variant="outline"
+							className={cn(
+								"w-[220px] justify-start text-left font-normal",
+								!selectedDate && "text-muted-foreground"
+							)}
+						>
+							{selectedDate ? selectedDate.toLocaleDateString() : "Pick a date"}
+						</Button>
+					</PopoverTrigger>
+					<PopoverContent className="w-auto p-0">
+						<Calendar
+							mode="single"
+							selected={selectedDate}
+							onSelect={(date) => {
+								setSelectedDate(date);
+								setTimePeriod("by_date" as TimePeriod);
+								setSelectedYear("");
+								setSelectedMonth("");
+								setSelectedQuarter("");
+							}}
+							className="rounded-md border"
+						/>
+					</PopoverContent>
+				</Popover>
 			</div>
 
 			{/* Display active filters */}
@@ -781,219 +829,56 @@ function SatisfactionTrendsChart({
 		// If region filter is set, use that first
 		if (filters?.region) {
 			params.append("region", filters.region);
-		}
-		// Otherwise use user's region if available
-		else if (user?.region) {
+		} else if (user?.region) {
 			params.append("region", user.region);
 		}
-
-		// Add district filter if provided
 		if (filters?.district) {
 			params.append("district", filters.district);
 		}
-
-		// Add facility filter if provided
 		if (filters?.facility) {
 			params.append("facility", filters.facility);
 		}
-
-		// Set role parameter based on user's region
 		if (user?.region) {
 			params.append("role", "region");
 		} else {
 			params.append("role", "national");
 		}
-
 		const queryString = params.toString();
-		const fullEndpoint = queryString
-			? `${baseUrl}?${queryString}`
-			: baseUrl;
-
+		const fullEndpoint = queryString ? `${baseUrl}?${queryString}` : baseUrl;
 		return fullEndpoint;
 	}, [filters, user?.region, timeFilter]);
 
-	const { data, error, isLoading } = useSWR<ApiResponse>(
-		endpoint,
-		authFetcher
-	);
+	const { data, error, isLoading } = useSWR<any>(endpoint, authFetcher);
 
+	// Handle loading state
 	if (isLoading) return <div>Loading chart...</div>;
-	if (error)
-		return <div className="text-red-500">Failed to load chart data</div>;
-	if (!data || !data.summary) return null;
+	if (error) return <div className="text-red-500">Failed to load chart data</div>;
+	if (!data || !data.labels || !data.datasets || !data.datasets[0]) return null;
 
-	// Color coding function
-	const getSatisfactionColor = (percentage: number) => {
-		if (percentage >= 80) return "#22c55e"; // Green
-		if (percentage >= 50) return "#eab308"; // Yellow
-		return "#ef4444"; // Red
-	};
+	// Transform the data for Recharts
+	const chartData = data.labels.map((label: string, idx: number) => ({
+		label, // e.g., "2024-07"
+		value: data.datasets[0].data[idx],
+	}));
 
-	// Format month labels for last_12_months
-	const formatMonthLabel = (monthStr: string) => {
+	// Optional: Format month labels (e.g., "2024-07" to "Jul 2024")
+	const formatMonth = (monthStr: string) => {
 		const [year, month] = monthStr.split("-");
 		const monthNames = [
-			"Jan",
-			"Feb",
-			"Mar",
-			"Apr",
-			"May",
-			"Jun",
-			"Jul",
-			"Aug",
-			"Sep",
-			"Oct",
-			"Nov",
-			"Dec",
+			"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+			"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
 		];
-		return `${monthNames[parseInt(month) - 1]} ${year}`;
+		return `${monthNames[parseInt(month, 10) - 1]} ${year}`;
 	};
-
-	// Handle last_12_months data with line chart
-	if (timeFilter === "last_12_months") {
-		const monthlyData = data.summary.last_12_months;
-		if (!monthlyData.labels || !monthlyData.percentages) {
-			return (
-				<div className="text-gray-500">
-					No monthly data available
-				</div>
-			);
-		}
-
-		// Transform monthly data for line chart
-		const chartData = monthlyData.labels.map((month, index) => ({
-			month: formatMonthLabel(month),
-			monthShort:
-				month.split("-")[1] + "/" + month.split("-")[0].slice(2), // "05/24" format
-			satisfaction_percentage: monthlyData.percentages[index],
-		}));
-
-		return (
-			<div className="h-[400px] mt-4">
-				<ResponsiveContainer
-					width="100%"
-					height="100%"
-				>
-					<LineChart
-						data={chartData}
-						margin={{
-							top: 20,
-							right: 30,
-							left: 20,
-							bottom: 60,
-						}}
-					>
-						<CartesianGrid
-							strokeDasharray="3 3"
-							stroke="#e5e7eb"
-						/>
-						<XAxis
-							dataKey="monthShort"
-							angle={-45}
-							textAnchor="end"
-							height={80}
-							tick={{ fontSize: 11 }}
-							interval={0}
-						/>
-						<YAxis
-							domain={[0, 100]}
-							tickFormatter={(value) => `${value}%`}
-							label={{
-								value: "Satisfaction Rate (%)",
-								angle: -90,
-								position: "insideLeft",
-								style: { textAnchor: "middle" },
-							}}
-						/>
-						<Tooltip
-							formatter={(value: any) => [
-								`${Number(value).toFixed(1)}%`,
-								"Satisfaction Rate",
-							]}
-							labelFormatter={(label, payload) => {
-								if (payload && payload[0]) {
-									return `Month: ${payload[0].payload.month}`;
-								}
-								return `Month: ${label}`;
-							}}
-							contentStyle={{
-								backgroundColor:
-									"rgba(255, 255, 255, 0.95)",
-								border: "1px solid #e5e7eb",
-								borderRadius: "6px",
-							}}
-						/>
-						<Line
-							dataKey="satisfaction_percentage"
-							stroke="#3b82f6"
-							strokeWidth={3}
-							dot={(props) => {
-								const { cx, cy, payload } = props;
-								const color = getSatisfactionColor(
-									payload.satisfaction_percentage
-								);
-								return (
-									<circle
-										cx={cx}
-										cy={cy}
-										r={4}
-										fill={color}
-										stroke={color}
-										strokeWidth={2}
-									/>
-								);
-							}}
-							activeDot={{
-								r: 6,
-								strokeWidth: 2,
-							}}
-						/>
-					</LineChart>
-				</ResponsiveContainer>
-			</div>
-		);
-	}
-
-	// Regular summary data for other time periods - bar chart
-	const summaryEntries = Object.entries(data.summary).filter(
-		([key]) => key !== "last_12_months"
-	) as [string, TimeBasedSummary][];
-
-	const chartData = summaryEntries.map(([period, summary]) => {
-		const formattedPeriod = period
-			.replace(/_/g, " ")
-			.replace(/\b\w/g, (l) => l.toUpperCase());
-		return {
-			period: formattedPeriod,
-			satisfaction_percentage: summary.satisfaction_percentage,
-			total_clients: summary.total_clients,
-			satisfied_clients: summary.satisfied_clients,
-		};
-	});
 
 	return (
 		<div className="h-[400px] mt-4">
-			<ResponsiveContainer
-				width="100%"
-				height="100%"
-			>
-				<BarChart
-					data={chartData}
-					margin={{
-						top: 20,
-						right: 30,
-						left: 20,
-						bottom: 60,
-					}}
-					barSize={50}
-				>
-					<CartesianGrid
-						strokeDasharray="3 3"
-						vertical={false}
-						stroke="#e5e7eb"
-					/>
+			<ResponsiveContainer width="100%" height="100%">
+				<LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+					<CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
 					<XAxis
-						dataKey="period"
+						dataKey="label"
+						tickFormatter={formatMonth}
 						angle={-45}
 						textAnchor="end"
 						height={80}
@@ -1010,55 +895,17 @@ function SatisfactionTrendsChart({
 							style: { textAnchor: "middle" },
 						}}
 					/>
-					<Tooltip
-						formatter={(
-							value: any,
-							name: any,
-							props: any
-						) => {
-							return [
-								`${Number(value).toFixed(1)}%`,
-								"Satisfaction Rate",
-							];
-						}}
-						labelFormatter={(label) => `Period: ${label}`}
-						contentStyle={{
-							backgroundColor: "rgba(255, 255, 255, 0.95)",
-							border: "1px solid #e5e7eb",
-							borderRadius: "6px",
-						}}
+					<Tooltip formatter={(v) => `${v}%`} labelFormatter={formatMonth} />
+					<Line
+						type="monotone"
+						dataKey="value"
+						stroke="#3b82f6"
+						strokeWidth={3}
+						dot={{ r: 4 }}
+						activeDot={{ r: 6 }}
+						name="Satisfaction Rate (%)"
 					/>
-					<Bar
-						dataKey="satisfaction_percentage"
-						name="Satisfaction Rate"
-						radius={[4, 4, 0, 0]}
-					>
-						{chartData.map((entry, index) => (
-							<Cell
-								key={`cell-${index}`}
-								fill={getSatisfactionColor(
-									entry.satisfaction_percentage
-								)}
-								stroke={getSatisfactionColor(
-									entry.satisfaction_percentage
-								)}
-								strokeWidth={1}
-							/>
-						))}
-						<LabelList
-							dataKey="satisfaction_percentage"
-							position="top"
-							formatter={(value: number) =>
-								`${value.toFixed(1)}%`
-							}
-							style={{
-								fontSize: 11,
-								fill: "#374151",
-								fontWeight: "600",
-							}}
-						/>
-					</Bar>
-				</BarChart>
+				</LineChart>
 			</ResponsiveContainer>
 		</div>
 	);

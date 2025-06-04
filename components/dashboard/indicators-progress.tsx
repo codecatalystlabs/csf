@@ -10,12 +10,22 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/app/context/auth-context";
 import { LocationFilterValues } from "@/components/filters/location-filter";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 
 // Define the indicator data type
 interface IndicatorData {
 	today: number;
 	this_month: number;
 	cumulative: number;
+	by_quarter_year: number;
+	by_date: number;
+	by_year: number;
+	by_month: number;
+	by_month_year: number;
 }
 
 interface IndicatorResponse {
@@ -34,10 +44,45 @@ interface IndicatorsProgressProps {
 	filters?: LocationFilterValues;
 }
 
+// Add months, quarters, and availableYears definitions
+const months = [
+	{ value: "01", label: "January" },
+	{ value: "02", label: "February" },
+	{ value: "03", label: "March" },
+	{ value: "04", label: "April" },
+	{ value: "05", label: "May" },
+	{ value: "06", label: "June" },
+	{ value: "07", label: "July" },
+	{ value: "08", label: "August" },
+	{ value: "09", label: "September" },
+	{ value: "10", label: "October" },
+	{ value: "11", label: "November" },
+	{ value: "12", label: "December" },
+];
+const quarters = [
+	{ value: "Q1", label: "Q1 (Jan-Mar)" },
+	{ value: "Q2", label: "Q2 (Apr-Jun)" },
+	{ value: "Q3", label: "Q3 (Jul-Sep)" },
+	{ value: "Q4", label: "Q4 (Oct-Dec)" },
+];
+const generateYears = () => {
+	const currentYear = new Date().getFullYear();
+	const years = [];
+	for (let year = 2020; year <= currentYear; year++) {
+		years.push(year);
+	}
+	return years;
+};
+const availableYears = generateYears();
+
 export function IndicatorsProgress({ filters }: IndicatorsProgressProps) {
 	const [timeframe, setTimeframe] = useState<
-		"today" | "this_month" | "cumulative"
+		"today" | "this_month" | "cumulative" | "by_quarter_year" | "by_date" | "by_year" | "by_month" | "by_month_year"
 	>("today");
+	const [selectedMonth, setSelectedMonth] = useState("");
+	const [selectedQuarter, setSelectedQuarter] = useState("");
+	const [selectedYear, setSelectedYear] = useState("");
+	const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
 
 	// Get user from auth context
 	const { user } = useAuth();
@@ -127,6 +172,107 @@ export function IndicatorsProgress({ filters }: IndicatorsProgressProps) {
 				<BarChart3 className="h-5 w-5 text-muted-foreground" />
 			</CardHeader>
 
+			{/* Time Filters UI */}
+			<div className="flex flex-wrap gap-2 items-center mb-4">
+				<Button
+					variant={timeframe === "today" ? "default" : "outline"}
+					onClick={() => setTimeframe("today")}
+					size="sm"
+				>
+					Today
+				</Button>
+				{/* Month Dropdown (enabled if year is selected) */}
+				<Select value={selectedMonth} onValueChange={(value) => {
+					setSelectedMonth(value);
+					setTimeframe("by_month_year");
+					setSelectedQuarter("");
+					setSelectedDate(undefined);
+				}} disabled={!selectedYear}>
+					<SelectTrigger className="w-[120px]">
+						<SelectValue placeholder="Month" />
+					</SelectTrigger>
+					<SelectContent>
+						{months.map((month) => (
+							<SelectItem key={month.value} value={month.value}>{month.label}</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+				{/* Quarter Dropdown (enabled if year is selected) */}
+				<Select value={selectedQuarter} onValueChange={(value) => {
+					setSelectedQuarter(value);
+					setTimeframe("by_quarter_year");
+					setSelectedMonth("");
+					setSelectedDate(undefined);
+				}} disabled={!selectedYear || !!selectedMonth}>
+					<SelectTrigger className="w-[120px]">
+						<SelectValue placeholder="Quarter" />
+					</SelectTrigger>
+					<SelectContent>
+						{quarters.map((q) => (
+							<SelectItem key={q.value} value={q.value}>{q.label}</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+				{/* Year Dropdown */}
+				<Select value={selectedYear} onValueChange={(value) => {
+					setSelectedYear(value);
+					setTimeframe("by_year");
+					setSelectedMonth("");
+					setSelectedQuarter("");
+					setSelectedDate(undefined);
+				}}>
+					<SelectTrigger className="w-[120px]">
+						<SelectValue placeholder="Year" />
+					</SelectTrigger>
+					<SelectContent>
+						{availableYears.map((year) => (
+							<SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+				<Button
+					variant={timeframe === "cumulative" ? "default" : "outline"}
+					onClick={() => {
+						setTimeframe("cumulative");
+						setSelectedYear("");
+						setSelectedMonth("");
+						setSelectedQuarter("");
+						setSelectedDate(undefined);
+					}}
+					size="sm"
+				>
+					Cumulative
+				</Button>
+				{/* Calendar for date selection as a popover */}
+				<Popover>
+					<PopoverTrigger asChild>
+						<Button
+							variant="outline"
+							className={cn(
+								"w-[220px] justify-start text-left font-normal",
+								!selectedDate && "text-muted-foreground"
+							)}
+						>
+							{selectedDate ? selectedDate.toLocaleDateString() : "Pick a date"}
+						</Button>
+					</PopoverTrigger>
+					<PopoverContent className="w-auto p-0">
+						<Calendar
+							mode="single"
+							selected={selectedDate}
+							onSelect={(date) => {
+								setSelectedDate(date);
+								setTimeframe("by_date");
+								setSelectedYear("");
+								setSelectedMonth("");
+								setSelectedQuarter("");
+							}}
+							className="rounded-md border"
+						/>
+					</PopoverContent>
+				</Popover>
+			</div>
+
 			<CardContent className="space-y-4">
 				<Tabs
 					defaultValue="today"
@@ -137,13 +283,18 @@ export function IndicatorsProgress({ filters }: IndicatorsProgressProps) {
 								| "today"
 								| "this_month"
 								| "cumulative"
+								| "by_quarter_year"
+								| "by_date"
+								| "by_year"
+								| "by_month"
+								| "by_month_year"
 						)
 					}
 				>
 					<TabsList className="grid w-full grid-cols-3">
 						<TabsTrigger value="today">Today</TabsTrigger>
-						<TabsTrigger value="this_month">
-							This Month
+						<TabsTrigger value="by_year">
+							By year
 						</TabsTrigger>
 						<TabsTrigger value="cumulative">
 							Cumulative

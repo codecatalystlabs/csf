@@ -16,11 +16,18 @@ import { Loader2 } from "lucide-react";
 import { BASE_URL, LOCATION_ENDPOINTS } from "@/lib/api-config";
 import { useAuth } from "@/app/context/auth-context";
 import { cn } from "@/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 
 export interface LocationFilterValues {
 	region?: string;
 	district?: string;
 	facility?: string;
+	time_filter?: string;
+	year?: string;
+	month?: string;
+	quarter?: string;
+	date?: string;
 }
 
 export interface LocationFilterProps {
@@ -49,6 +56,11 @@ export function LocationFilter({
 	const [selectedRegion, setSelectedRegion] = useState<string>("");
 	const [selectedDistrict, setSelectedDistrict] = useState<string>("");
 	const [selectedFacility, setSelectedFacility] = useState<string>("");
+	const [selectedMonth, setSelectedMonth] = useState("");
+	const [selectedQuarter, setSelectedQuarter] = useState("");
+	const [selectedYear, setSelectedYear] = useState("");
+	const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+	const [timeframe, setTimeframe] = useState<string>("cumulative");
 
 	// Use refs to track previous values to prevent unnecessary updates
 	const prevFiltersRef = useRef<LocationFilterValues>({});
@@ -156,6 +168,39 @@ export function LocationFilter({
 		setSelectedFacility(value);
 	}, []);
 
+	const months = [
+		{ value: "01", label: "January" },
+		{ value: "02", label: "February" },
+		{ value: "03", label: "March" },
+		{ value: "04", label: "April" },
+		{ value: "05", label: "May" },
+		{ value: "06", label: "June" },
+		{ value: "07", label: "July" },
+		{ value: "08", label: "August" },
+		{ value: "09", label: "September" },
+		{ value: "10", label: "October" },
+		{ value: "11", label: "November" },
+		{ value: "12", label: "December" },
+	];
+
+	const quarters = [
+		{ value: "Q1", label: "Q1 (Jan-Mar)" },
+		{ value: "Q2", label: "Q2 (Apr-Jun)" },
+		{ value: "Q3", label: "Q3 (Jul-Sep)" },
+		{ value: "Q4", label: "Q4 (Oct-Dec)" },
+	];
+
+	const generateYears = () => {
+		const currentYear = new Date().getFullYear();
+		const years = [];
+		for (let year = 2020; year <= currentYear; year++) {
+			years.push(year);
+		}
+		return years;
+	};
+
+	const availableYears = generateYears();
+
 	// Apply filters when changed, with reference equality check
 	useEffect(() => {
 		const newFilters = {
@@ -171,18 +216,28 @@ export function LocationFilter({
 				selectedFacility !== "all_facilities"
 					? selectedFacility
 					: undefined,
+			time_filter: timeframe,
+			year: selectedYear,
+			month: selectedMonth,
+			quarter: selectedQuarter,
+			date: selectedDate?.toISOString().split("T")[0],
 		};
 
 		// Only update if filters have actually changed
 		if (
 			newFilters.region !== prevFiltersRef.current.region ||
 			newFilters.district !== prevFiltersRef.current.district ||
-			newFilters.facility !== prevFiltersRef.current.facility
+			newFilters.facility !== prevFiltersRef.current.facility ||
+			newFilters.time_filter !== prevFiltersRef.current.time_filter ||
+			newFilters.year !== prevFiltersRef.current.year ||
+			newFilters.month !== prevFiltersRef.current.month ||
+			newFilters.quarter !== prevFiltersRef.current.quarter ||
+			newFilters.date !== prevFiltersRef.current.date
 		) {
 			prevFiltersRef.current = newFilters;
 			onFilterChange(newFilters);
 		}
-	}, [selectedRegion, selectedDistrict, selectedFacility, onFilterChange]);
+	}, [selectedRegion, selectedDistrict, selectedFacility, timeframe, selectedYear, selectedMonth, selectedQuarter, selectedDate, onFilterChange]);
 
 	// Memoize the clear filters handler
 	const handleClearFilters = useCallback(() => {
@@ -202,15 +257,7 @@ export function LocationFilter({
 		<div className={cn("flex flex-wrap gap-3", className)}>
 			<Select
 				value={selectedRegion}
-				onValueChange={(value) => {
-					setSelectedRegion(value);
-					setSelectedDistrict("all_districts");
-					setSelectedFacility("all_facilities");
-					onFilterChange({
-						region:
-							value === "all_regions" ? undefined : value,
-					});
-				}}
+				onValueChange={handleRegionChange}
 			>
 				<SelectTrigger
 					className={cn(
@@ -226,7 +273,7 @@ export function LocationFilter({
 					<SelectItem value="all_regions">
 						All Regions
 					</SelectItem>
-					{regions.map((region) => (
+					{regions.map((region: { id: string; name: string }) => (
 						<SelectItem
 							key={region.id}
 							value={region.id}
@@ -240,20 +287,7 @@ export function LocationFilter({
 
 			<Select
 				value={selectedDistrict}
-				onValueChange={(value) => {
-					setSelectedDistrict(value);
-					setSelectedFacility("all_facilities");
-					onFilterChange({
-						region:
-							selectedRegion === "all_regions"
-								? undefined
-								: selectedRegion,
-						district:
-							value === "all_districts"
-								? undefined
-								: value,
-					});
-				}}
+				onValueChange={handleDistrictChange}
 				disabled={
 					!selectedRegion || selectedRegion === "all_regions"
 				}
@@ -275,7 +309,7 @@ export function LocationFilter({
 					<SelectItem value="all_districts">
 						All Districts
 					</SelectItem>
-					{districts.map((district) => (
+					{districts.map((district: { id: string; name: string }) => (
 						<SelectItem
 							key={district.id}
 							value={district.id}
@@ -289,23 +323,7 @@ export function LocationFilter({
 
 			<Select
 				value={selectedFacility}
-				onValueChange={(value) => {
-					setSelectedFacility(value);
-					onFilterChange({
-						region:
-							selectedRegion === "all_regions"
-								? undefined
-								: selectedRegion,
-						district:
-							selectedDistrict === "all_districts"
-								? undefined
-								: selectedDistrict,
-						facility:
-							value === "all_facilities"
-								? undefined
-								: value,
-					});
-				}}
+				onValueChange={handleFacilityChange}
 				disabled={
 					!selectedDistrict ||
 					selectedDistrict === "all_districts"
@@ -328,7 +346,7 @@ export function LocationFilter({
 					<SelectItem value="all_facilities">
 						All Facilities
 					</SelectItem>
-					{facilities.map((facility) => (
+					{facilities.map((facility: { id: string; name: string }) => (
 						<SelectItem
 							key={facility.id}
 							value={facility.id}
@@ -339,6 +357,108 @@ export function LocationFilter({
 					))}
 				</SelectContent>
 			</Select>
+
+			<div className="flex flex-wrap gap-2 items-center">
+				<Button
+					variant={timeframe === "today" ? "default" : "outline"}
+					onClick={() => {
+						setTimeframe("today");
+						setSelectedYear("");
+						setSelectedMonth("");
+						setSelectedQuarter("");
+						setSelectedDate(undefined);
+					}}
+					size="sm"
+				>
+					Today
+				</Button>
+				<Select value={selectedMonth} onValueChange={(value) => {
+					setSelectedMonth(value);
+					setTimeframe("by_month_year");
+					setSelectedQuarter("");
+					setSelectedDate(undefined);
+				}} disabled={!selectedYear}>
+					<SelectTrigger className="w-[120px]">
+						<SelectValue placeholder="Month" />
+					</SelectTrigger>
+					<SelectContent>
+						{months.map((month) => (
+							<SelectItem key={month.value} value={month.value}>{month.label}</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+				<Select value={selectedQuarter} onValueChange={(value) => {
+					setSelectedQuarter(value);
+					setTimeframe("by_quarter_year");
+					setSelectedMonth("");
+					setSelectedDate(undefined);
+				}} disabled={!selectedYear || !!selectedMonth}>
+					<SelectTrigger className="w-[120px]">
+						<SelectValue placeholder="Quarter" />
+					</SelectTrigger>
+					<SelectContent>
+						{quarters.map((q) => (
+							<SelectItem key={q.value} value={q.value}>{q.label}</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+				<Select value={selectedYear} onValueChange={(value) => {
+					setSelectedYear(value);
+					setTimeframe("by_year");
+					setSelectedMonth("");
+					setSelectedQuarter("");
+					setSelectedDate(undefined);
+				}}>
+					<SelectTrigger className="w-[120px]">
+						<SelectValue placeholder="Year" />
+					</SelectTrigger>
+					<SelectContent>
+						{availableYears.map((year) => (
+							<SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+				<Button
+					variant={timeframe === "cumulative" ? "default" : "outline"}
+					onClick={() => {
+						setTimeframe("cumulative");
+						setSelectedYear("");
+						setSelectedMonth("");
+						setSelectedQuarter("");
+						setSelectedDate(undefined);
+					}}
+					size="sm"
+				>
+					Cumulative
+				</Button>
+				<Popover>
+					<PopoverTrigger asChild>
+						<Button
+							variant="outline"
+							className={cn(
+								"w-[220px] justify-start text-left font-normal",
+								!selectedDate && "text-muted-foreground"
+							)}
+						>
+							{selectedDate ? selectedDate.toLocaleDateString() : "Pick a date"}
+						</Button>
+					</PopoverTrigger>
+					<PopoverContent className="w-auto p-0">
+						<Calendar
+							mode="single"
+							selected={selectedDate}
+							onSelect={(date) => {
+								setSelectedDate(date);
+								setTimeframe("by_date");
+								setSelectedYear("");
+								setSelectedMonth("");
+								setSelectedQuarter("");
+							}}
+							className="rounded-md border"
+						/>
+					</PopoverContent>
+				</Popover>
+			</div>
 		</div>
 	);
 

@@ -26,6 +26,11 @@ import {
 	ComposedChart,
 } from "recharts";
 import Image from "next/image";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 // Fetcher function for the SWR hook
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
@@ -910,17 +915,48 @@ export function BribeByRegionChartWithFilters() {
 // Add the DissatisfactionParetoChartWithFilters component
 export function DissatisfactionParetoChartWithFilters() {
 	const [filters, setFilters] = useState<LocationFilterValues>({});
+	const [timeframe, setTimeframe] = useState<string>("this_month");
+	const [selectedMonth, setSelectedMonth] = useState("");
+	const [selectedQuarter, setSelectedQuarter] = useState("");
+	const [selectedYear, setSelectedYear] = useState("");
+	const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
 
 	const handleFilterChange = useCallback(
 		(newFilters: LocationFilterValues) => {
-			console.log(
-				"Filter changed in Dissatisfaction chart:",
-				newFilters
-			);
 			setFilters(newFilters);
 		},
 		[]
 	);
+
+	const months = [
+		{ value: "01", label: "January" },
+		{ value: "02", label: "February" },
+		{ value: "03", label: "March" },
+		{ value: "04", label: "April" },
+		{ value: "05", label: "May" },
+		{ value: "06", label: "June" },
+		{ value: "07", label: "July" },
+		{ value: "08", label: "August" },
+		{ value: "09", label: "September" },
+		{ value: "10", label: "October" },
+		{ value: "11", label: "November" },
+		{ value: "12", label: "December" },
+	];
+	const quarters = [
+		{ value: "Q1", label: "Q1 (Jan-Mar)" },
+		{ value: "Q2", label: "Q2 (Apr-Jun)" },
+		{ value: "Q3", label: "Q3 (Jul-Sep)" },
+		{ value: "Q4", label: "Q4 (Oct-Dec)" },
+	];
+	const generateYears = () => {
+		const currentYear = new Date().getFullYear();
+		const years = [];
+		for (let year = 2020; year <= currentYear; year++) {
+			years.push(year);
+		}
+		return years;
+	};
+	const availableYears = generateYears();
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -929,22 +965,120 @@ export function DissatisfactionParetoChartWithFilters() {
 				onFilterChange={handleFilterChange}
 			/>
 
+			{/* Time Filters UI */}
+			<div className="flex flex-wrap gap-2 items-center mb-4">
+				<Button
+					variant={timeframe === "today" ? "default" : "outline"}
+					onClick={() => {
+						setTimeframe("today");
+						setSelectedYear("");
+						setSelectedMonth("");
+						setSelectedQuarter("");
+						setSelectedDate(undefined);
+					}}
+					size="sm"
+				>
+					Today
+				</Button>
+				{/* Month Dropdown (enabled if year is selected) */}
+				<Select value={selectedMonth} onValueChange={(value) => {
+					setSelectedMonth(value);
+					setTimeframe("this_month");
+					setSelectedQuarter("");
+					setSelectedDate(undefined);
+				}} disabled={!selectedYear}>
+					<SelectTrigger className="w-[120px]">
+						<SelectValue placeholder="Month" />
+					</SelectTrigger>
+					<SelectContent>
+						{months.map((month) => (
+							<SelectItem key={month.value} value={month.value}>{month.label}</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+				{/* Quarter Dropdown (enabled if year is selected) */}
+				<Select value={selectedQuarter} onValueChange={(value) => {
+					setSelectedQuarter(value);
+					setTimeframe("current_quarter");
+					setSelectedMonth("");
+					setSelectedDate(undefined);
+				}} disabled={!selectedYear || !!selectedMonth}>
+					<SelectTrigger className="w-[120px]">
+						<SelectValue placeholder="Quarter" />
+					</SelectTrigger>
+					<SelectContent>
+						{quarters.map((q) => (
+							<SelectItem key={q.value} value={q.value}>{q.label}</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+				{/* Year Dropdown */}
+				<Select value={selectedYear} onValueChange={(value) => {
+					setSelectedYear(value);
+					setTimeframe("this_year");
+					setSelectedMonth("");
+					setSelectedQuarter("");
+					setSelectedDate(undefined);
+				}}>
+					<SelectTrigger className="w-[120px]">
+						<SelectValue placeholder="Year" />
+					</SelectTrigger>
+					<SelectContent>
+						{availableYears.map((year) => (
+							<SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+				<Button
+					variant={timeframe === "cumulative" ? "default" : "outline"}
+					onClick={() => {
+						setTimeframe("cumulative");
+						setSelectedYear("");
+						setSelectedMonth("");
+						setSelectedQuarter("");
+						setSelectedDate(undefined);
+					}}
+					size="sm"
+				>
+					Cumulative
+				</Button>
+				{/* Calendar for date selection as a popover */}
+				<Popover>
+					<PopoverTrigger asChild>
+						<Button
+							variant="outline"
+							className={cn(
+								"w-[220px] justify-start text-left font-normal",
+								!selectedDate && "text-muted-foreground"
+							)}
+						>
+							{selectedDate ? selectedDate.toLocaleDateString() : "Pick a date"}
+						</Button>
+					</PopoverTrigger>
+					<PopoverContent className="w-auto p-0">
+						<Calendar
+							mode="single"
+							selected={selectedDate}
+							onSelect={(date) => {
+								setSelectedDate(date);
+								setTimeframe("by_date");
+								setSelectedYear("");
+								setSelectedMonth("");
+								setSelectedQuarter("");
+							}}
+							className="rounded-md border"
+						/>
+					</PopoverContent>
+				</Popover>
+			</div>
+
 			{/* Display active filters */}
 			{(filters.region || filters.district || filters.facility) && (
 				<div className="p-2 border rounded-md bg-blue-50 text-blue-700 text-sm mb-4">
 					<strong>Filters applied:</strong>
-					{filters.region &&
-						` Region: ${filters.region.replace(/_/g, " ")}`}
-					{filters.district &&
-						` | District: ${filters.district.replace(
-							/_/g,
-							" "
-						)}`}
-					{filters.facility &&
-						` | Facility: ${filters.facility.replace(
-							/_/g,
-							" "
-						)}`}
+					{filters.region && ` Region: ${filters.region.replace(/_/g, " ")}`}
+					{filters.district && ` | District: ${filters.district.replace(/_/g, " ")}`}
+					{filters.facility && ` | Facility: ${filters.facility.replace(/_/g, " ")}`}
 				</div>
 			)}
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import useSWR from "swr";
 import {
 	Users,
@@ -37,6 +37,9 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Loader } from "@/components/ui/loader";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 // Function to generate a list of years (e.g., from 2020 to current year)
 const generateYears = () => {
@@ -57,7 +60,13 @@ type TimePeriod =
 	| "last_year"
 	| "this_year"
 	| "current_quarter"
-	| "previous_quarter";
+	| "previous_quarter"
+	| "by_month_year"
+	| "by_quarter_year"
+	| "by_date"
+	| "by_year"
+	| "by_month"
+	| "by_date";
 
 interface DashboardMetricsProps {
 	filters?: LocationFilterValues;
@@ -74,7 +83,7 @@ export function DashboardMetrics({
 }: DashboardMetricsProps) {
 	const { toast } = useToast();
 	const { user } = useAuth();
-	const [timePeriod, setTimePeriod] = useState<TimePeriod>("this_month");
+	const [timePeriod, setTimePeriod] = useState<TimePeriod>("cumulative");
 	const [startYear, setStartYear] = useState<number | undefined>(
 		initialStartYear
 	);
@@ -82,6 +91,31 @@ export function DashboardMetrics({
 	const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 	const dashboardRef = useRef<HTMLDivElement>(null);
 	const availableYears = generateYears();
+	const [selectedYear, setSelectedYear] = useState<string>("");
+	const [selectedMonth, setSelectedMonth] = useState<string>("");
+	const [selectedQuarter, setSelectedQuarter] = useState<string>("");
+	const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+
+	const months = [
+		{ value: "01", label: "January" },
+		{ value: "02", label: "February" },
+		{ value: "03", label: "March" },
+		{ value: "04", label: "April" },
+		{ value: "05", label: "May" },
+		{ value: "06", label: "June" },
+		{ value: "07", label: "July" },
+		{ value: "08", label: "August" },
+		{ value: "09", label: "September" },
+		{ value: "10", label: "October" },
+		{ value: "11", label: "November" },
+		{ value: "12", label: "December" },
+	];
+	const quarters = [
+		{ value: "Q1", label: "Q1 (Jan-Mar)" },
+		{ value: "Q2", label: "Q2 (Apr-Jun)" },
+		{ value: "Q3", label: "Q3 (Jul-Sep)" },
+		{ value: "Q4", label: "Q4 (Oct-Dec)" },
+	];
 
 	const handleStartYearChange = useCallback(
 		(value: string) => {
@@ -126,23 +160,64 @@ export function DashboardMetrics({
 		setEndYear(initialEndYear);
 	}, [initialEndYear]);
 
-	const dashboardEndpoint = DASHBOARD_ENDPOINTS.getFilteredDashboardData({
-		region: filters?.region || user?.region,
-		district: filters?.district,
-		facility: filters?.facility,
-		period: timePeriod === "custom_year_range" ? undefined : timePeriod,
-		start_year:
-			timePeriod === "custom_year_range" ? startYear : undefined,
-		end_year: timePeriod === "custom_year_range" ? endYear : undefined,
-		role: user?.region ? "region" : "national",
-	});
+	const dashboardEndpoint = useMemo(() => {
+		const baseUrl = "https://csf.health.go.ug/api/dashboard_data.php";
+		const params = new URLSearchParams();
+
+		if (filters?.region) params.append("region", filters.region);
+		if (filters?.district) params.append("district", filters.district);
+		if (filters?.facility) params.append("facility", filters.facility);
+
+		if (timePeriod === "today") {
+			params.append("time_filter", "today");
+		} else if (timePeriod === "cumulative") {
+			params.append("time_filter", "cumulative");
+		} else if (timePeriod === "by_year") {
+			params.append("time_filter", "by_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+		} else if (timePeriod === "by_month_year") {
+			params.append("time_filter", "by_month_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+			if (selectedMonth) params.append("month", selectedMonth);
+		} else if (timePeriod === "by_quarter_year") {
+			params.append("time_filter", "by_quarter_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+			if (selectedQuarter) params.append("quarter", String(selectedQuarter));
+		} else if (timePeriod === "by_month") {
+			params.append("time_filter", "by_month");
+		} else if (timePeriod === "by_date") {
+			params.append("time_filter", "by_date");
+			if (selectedDate) {
+				params.append("date_from", selectedDate.toISOString().split('T')[0]);
+				params.append("date_to", selectedDate.toISOString().split('T')[0]);
+			}
+		} else {
+			// Default to cumulative if no other time period is selected
+			params.append("time_filter", "cumulative");
+		}
+
+		const queryString = params.toString();
+		const fullEndpoint = queryString ? `${baseUrl}?${queryString}` : baseUrl;
+		console.log('Constructed Endpoint:', fullEndpoint);
+		console.log('Selected Values:', { selectedYear, selectedMonth, selectedQuarter, selectedDate });
+		console.log('Filters:', filters);
+		return fullEndpoint;
+	}, [filters, timePeriod, selectedYear, selectedMonth, selectedQuarter, selectedDate]);
 
 	const {
 		data,
 		error,
 		isLoading,
 		mutate: refreshDashboard,
-	} = useSWR(dashboardEndpoint, authFetcher, { revalidateOnFocus: false });
+	} = useSWR(dashboardEndpoint, authFetcher, {
+		revalidateOnFocus: false,
+		onSuccess: (data) => {
+			console.log('Dashboard Data:', data);
+		},
+		onError: (error) => {
+			console.error('Error fetching dashboard data:', error);
+		}
+	});
 
 	const handlePeriodChange = (period: TimePeriod) => {
 		setTimePeriod(period);
@@ -364,148 +439,113 @@ export function DashboardMetrics({
 	return (
 		<div className="space-y-4">
 			<div className="flex flex-wrap gap-2 items-center">
+				{/* Today and Cumulative buttons */}
 				<Button
-					variant={
-						timePeriod === "today" ? "default" : "outline"
-					}
-					onClick={() => handlePeriodChange("today")}
+					variant={timePeriod === "today" ? "default" : "outline"}
+					onClick={() => {
+						setTimePeriod("today");
+						setSelectedYear("");
+						setSelectedMonth("");
+						setSelectedQuarter("");
+						setSelectedDate(undefined);
+					}}
 					size="sm"
 				>
 					Today
 				</Button>
+
+				{/* Month Dropdown (enabled if year is selected) */}
+				<Select value={selectedMonth} onValueChange={(value) => {
+					setSelectedMonth(value);
+					setTimePeriod("by_month_year");
+					setSelectedQuarter("");
+					setSelectedDate(undefined);
+				}} disabled={!selectedYear}>
+					<SelectTrigger className="w-[120px]">
+						<SelectValue placeholder="Month" />
+					</SelectTrigger>
+					<SelectContent>
+						{months.map((month) => (
+							<SelectItem key={month.value} value={month.value}>{month.label}</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+
+				{/* Quarter Dropdown (enabled if year is selected) */}
+				<Select value={selectedQuarter} onValueChange={(value) => {
+					setSelectedQuarter(value);
+					setTimePeriod("by_quarter_year");
+					setSelectedMonth("");
+					setSelectedDate(undefined);
+				}} disabled={!selectedYear || !!selectedMonth}>
+					<SelectTrigger className="w-[120px]">
+						<SelectValue placeholder="Quarter" />
+					</SelectTrigger>
+					<SelectContent>
+						{quarters.map((q) => (
+							<SelectItem key={q.value} value={q.value}>{q.label}</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+				{/* Year Dropdown */}
+				<Select value={selectedYear} onValueChange={(value) => {
+					setSelectedYear(value);
+					setTimePeriod("by_year");
+					setSelectedMonth("");
+					setSelectedQuarter("");
+					setSelectedDate(undefined);
+				}}>
+					<SelectTrigger className="w-[120px]">
+						<SelectValue placeholder="Year" />
+					</SelectTrigger>
+					<SelectContent>
+						{availableYears.map((year) => (
+							<SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
 				<Button
-					variant={
-						timePeriod === "this_month"
-							? "default"
-							: "outline"
-					}
-					onClick={() => handlePeriodChange("this_month")}
-					size="sm"
-				>
-					This Month
-				</Button>
-				<Button
-					variant={
-						timePeriod === "current_quarter"
-							? "default"
-							: "outline"
-					}
-					onClick={() => handlePeriodChange("current_quarter")}
-					size="sm"
-				>
-					Current Quarter
-				</Button>
-				<Button
-					variant={
-						timePeriod === "previous_quarter"
-							? "default"
-							: "outline"
-					}
-					onClick={() => handlePeriodChange("previous_quarter")}
-					size="sm"
-				>
-					Previous Quarter
-				</Button>
-				<Button
-					variant={
-						timePeriod === "this_year" ? "default" : "outline"
-					}
-					onClick={() => handlePeriodChange("this_year")}
-					size="sm"
-				>
-					This Year
-				</Button>
-				<Button
-					variant={
-						timePeriod === "last_month"
-							? "default"
-							: "outline"
-					}
-					onClick={() => handlePeriodChange("last_month")}
-					size="sm"
-				>
-					Last Month
-				</Button>
-				<Button
-					variant={
-						timePeriod === "last_year" ? "default" : "outline"
-					}
-					onClick={() => handlePeriodChange("last_year")}
-					size="sm"
-				>
-					Last year
-				</Button>
-				<Button
-					variant={
-						timePeriod === "cumulative"
-							? "default"
-							: "outline"
-					}
-					onClick={() => handlePeriodChange("cumulative")}
+					variant={timePeriod === "cumulative" ? "default" : "outline"}
+					onClick={() => {
+						setTimePeriod("cumulative");
+						setSelectedYear("");
+						setSelectedMonth("");
+						setSelectedQuarter("");
+						setSelectedDate(undefined);
+					}}
 					size="sm"
 				>
 					Cumulative
 				</Button>
 
-				{/* Year Range Pickers */}
-				{/* <div className="flex gap-2 items-center ml-4">
-					<Label
-						htmlFor="startYearMetric"
-						className="text-sm"
-					>
-						From:
-					</Label>
-					<Select
-						value={startYear?.toString()}
-						onValueChange={handleStartYearChange}
-					>
-						<SelectTrigger
-							id="startYearMetric"
-							className="w-[100px] h-9 text-xs"
+				{/* Calendar for date selection as a popover */}
+				<Popover>
+					<PopoverTrigger asChild>
+						<Button
+							variant="outline"
+							className={cn(
+								"w-[220px] justify-start text-left font-normal",
+								!selectedDate && "text-muted-foreground"
+							)}
 						>
-							<SelectValue placeholder="Year" />
-						</SelectTrigger>
-						<SelectContent>
-							{availableYears.map((year) => (
-								<SelectItem
-									key={year}
-									value={year.toString()}
-								>
-									{year}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-				</div>
-				<div className="flex gap-2 items-center">
-					<Label
-						htmlFor="endYearMetric"
-						className="text-sm"
-					>
-						To:
-					</Label>
-					<Select
-						value={endYear?.toString()}
-						onValueChange={handleEndYearChange}
-					>
-						<SelectTrigger
-							id="endYearMetric"
-							className="w-[100px] h-9 text-xs"
-						>
-							<SelectValue placeholder="Year" />
-						</SelectTrigger>
-						<SelectContent>
-							{availableYears.map((year) => (
-								<SelectItem
-									key={year}
-									value={year.toString()}
-								>
-									{year}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-				</div> */}
+							{selectedDate ? selectedDate.toLocaleDateString() : "Pick a date"}
+						</Button>
+					</PopoverTrigger>
+					<PopoverContent className="w-auto p-0">
+						<Calendar
+							mode="single"
+							selected={selectedDate}
+							onSelect={(date) => {
+								setSelectedDate(date);
+								setTimePeriod("by_date");
+								setSelectedYear("");
+								setSelectedMonth("");
+								setSelectedQuarter("");
+							}}
+							className="rounded-md border"
+						/>
+					</PopoverContent>
+				</Popover>
 
 				<div className="ml-auto flex gap-2">
 					<Button
@@ -606,7 +646,19 @@ export function DashboardMetrics({
 						</div>
 						<div className="lg:col-span-3 flex items-center justify-center">
 							<SatisfactionGaugeChart
-								filters={{ ...filters, timeFilter: timePeriod }}
+								filters={{
+									...filters,
+									timeFilter: timePeriod,
+									...(timePeriod === "by_quarter_year" && selectedYear && selectedQuarter
+										? { year: Number(selectedYear), quarter: Number(selectedQuarter) }
+										: {}),
+									...(timePeriod === "by_date" && selectedDate
+										? {
+											date_from: selectedDate.toISOString().split('T')[0],
+											date_to: selectedDate.toISOString().split('T')[0],
+										}
+										: {}),
+								}}
 							/>
 						</div>
 						<div className="lg:col-span-6">

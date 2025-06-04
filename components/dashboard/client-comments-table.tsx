@@ -28,6 +28,10 @@ import { BASE_URL, DASHBOARD_ENDPOINTS } from "@/lib/api-config";
 import { useAuth } from "@/app/context/auth-context";
 import { LocationFilterValues } from "@/components/filters/location-filter";
 import { authFetcher } from "@/lib/api-utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 
 // Define the types for the API response
 type TimeFrame =
@@ -38,7 +42,13 @@ type TimeFrame =
 	| "last_year"
 	| "current_quarter"
 	| "previous_quarter"
-	| "cumulative";
+	| "cumulative"
+	| "by_month_year"
+	| "by_quarter_year"
+	| "by_date"
+	| "by_year"
+	| "by_month"
+	| "by_date";
 
 interface Comment {
 	facility: string;
@@ -52,17 +62,50 @@ interface CommentsResponse {
 	page: number;
 	limit: number;
 	filters: {
-		[key in TimeFrame]: Comment[];
+		[key: string]: Comment[];
 	};
 	total: number;
+	time_filter?: string;
 }
 
 interface ClientCommentsTableProps {
 	filters?: LocationFilterValues;
 }
 
+const months = [
+	{ value: "01", label: "January" },
+	{ value: "02", label: "February" },
+	{ value: "03", label: "March" },
+	{ value: "04", label: "April" },
+	{ value: "05", label: "May" },
+	{ value: "06", label: "June" },
+	{ value: "07", label: "July" },
+	{ value: "08", label: "August" },
+	{ value: "09", label: "September" },
+	{ value: "10", label: "October" },
+	{ value: "11", label: "November" },
+	{ value: "12", label: "December" },
+];
+
+const quarters = [
+	{ value: "Q1", label: "Q1 (Jan-Mar)" },
+	{ value: "Q2", label: "Q2 (Apr-Jun)" },
+	{ value: "Q3", label: "Q3 (Jul-Sep)" },
+	{ value: "Q4", label: "Q4 (Oct-Dec)" },
+];
+
+const generateYears = () => {
+	const currentYear = new Date().getFullYear();
+	const years = [];
+	for (let year = 2020; year <= currentYear; year++) {
+		years.push(year);
+	}
+	return years;
+};
+
+const availableYears = generateYears();
+
 export function ClientCommentsTable({ filters }: ClientCommentsTableProps) {
-	const [timeframe, setTimeframe] = useState<TimeFrame>("this_month");
 	const [page, setPage] = useState(1);
 	const [limit] = useState(50);
 	const { user } = useAuth();
@@ -76,8 +119,22 @@ export function ClientCommentsTable({ filters }: ClientCommentsTableProps) {
 		params.append("page", page.toString());
 		params.append("limit", limit.toString());
 
-		// Add timeframe parameter
-		params.append("timeframe", timeframe);
+		// Add time filter parameters if provided
+		if (filters?.time_filter) {
+			params.append("time_filter", filters.time_filter);
+		}
+		if (filters?.year) {
+			params.append("year", filters.year);
+		}
+		if (filters?.month) {
+			params.append("month", filters.month);
+		}
+		if (filters?.quarter) {
+			params.append("quarter", filters.quarter);
+		}
+		if (filters?.date) {
+			params.append("date", filters.date);
+		}
 
 		// If region filter is set, use that first
 		if (filters?.region) {
@@ -106,7 +163,7 @@ export function ClientCommentsTable({ filters }: ClientCommentsTableProps) {
 
 		const queryString = params.toString();
 		return queryString ? `${baseUrl}?${queryString}` : baseUrl;
-	}, [filters, user?.region, page, limit, timeframe]);
+	}, [filters, user?.region, page, limit]);
 
 	// Use the authFetcher to make authenticated API requests
 	const { data, error, isLoading } = useSWR<CommentsResponse>(
@@ -127,9 +184,9 @@ export function ClientCommentsTable({ filters }: ClientCommentsTableProps) {
 
 	// Get comments for the selected timeframe
 	const comments = useMemo(() => {
-		if (!data || !data.filters[timeframe]) return [];
-		return data.filters[timeframe];
-	}, [data, timeframe]);
+		if (!data || !data.filters[filters?.time_filter || "cumulative"]) return [];
+		return data.filters[filters?.time_filter || "cumulative"];
+	}, [data, filters?.time_filter]);
 
 	// Handle page change
 	const handlePageChange = (newPage: number) => {
@@ -247,35 +304,12 @@ export function ClientCommentsTable({ filters }: ClientCommentsTableProps) {
 	return (
 		<Card>
 			<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-				<CardTitle className="text-lg font-medium">
+				<CardTitle className="text-lg font-medium flex items-center gap-2">
+					<MessageSquare className="h-5 w-5 text-muted-foreground" />
 					Client Comments
 				</CardTitle>
-				<MessageSquare className="h-5 w-5 text-muted-foreground" />
 			</CardHeader>
-			<CardContent className="space-y-4">
-				<Tabs
-					defaultValue="this_month"
-					className="w-full"
-					value={timeframe}
-					onValueChange={(value) => {
-						setTimeframe(value as TimeFrame);
-						setPage(1); // Reset to first page when changing timeframe
-					}}
-				>
-					<TabsList className="grid w-full grid-cols-4">
-						<TabsTrigger value="today">Today</TabsTrigger>
-						<TabsTrigger value="this_month">
-							This Month
-						</TabsTrigger>
-						<TabsTrigger value="this_year">
-							This Year
-						</TabsTrigger>
-						<TabsTrigger value="cumulative">
-							All Time
-						</TabsTrigger>
-					</TabsList>
-				</Tabs>
-
+			<CardContent>
 				{comments.length === 0 ? (
 					<div className="h-[300px] flex items-center justify-center text-muted-foreground">
 						No comments available for this time period
@@ -299,7 +333,7 @@ export function ClientCommentsTable({ filters }: ClientCommentsTableProps) {
 									</TableRow>
 								</TableHeader>
 								<TableBody>
-									{comments.map((comment, index) => (
+									{comments.map((comment: Comment, index: number) => (
 										<TableRow
 											key={`${comment.facility}-${index}`}
 										>

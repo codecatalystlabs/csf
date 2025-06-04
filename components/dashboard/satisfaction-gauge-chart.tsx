@@ -21,6 +21,10 @@ interface SatisfactionTrendData {
 interface Props {
 	filters?: LocationFilterValues & {
 		timeFilter?: string;
+		year?: number;
+		quarter?: number;
+		date_from?: string;
+		date_to?: string;
 	};
 }
 
@@ -33,27 +37,28 @@ export function SatisfactionGaugeChart({ filters }: Props) {
 		const baseUrl = DASHBOARD_ENDPOINTS.SATISFACTION_TREND;
 		const params = new URLSearchParams();
 
-		// Add time filter from the selected filter value
 		if (filters?.timeFilter) {
 			params.append("time_filter", filters.timeFilter);
+			if (filters.timeFilter === "by_quarter_year") {
+				if (filters.year) params.append("year", String(filters.year));
+				if (filters.quarter) params.append("quarter", String(filters.quarter));
+			}
+			if (filters.timeFilter === "by_date") {
+				if (filters.date_from) params.append("date_from", filters.date_from);
+				if (filters.date_to) params.append("date_to", filters.date_to);
+			}
 		} else {
-			// Default to cumulative if no time filter is selected
 			params.append("time_filter", "cumulative");
 		}
 
-		// If region filter is set, use that first
 		if (filters?.region) {
 			params.append("region", filters.region);
-		}
-		// Otherwise use user's region if available
-		else if (user?.region) {
+		} else if (user?.region) {
 			params.append("region", user.region);
 		}
-
 		if (filters?.district) params.append("district", filters.district);
 		if (filters?.facility) params.append("facility", filters.facility);
 
-		// Set role parameter based on user's region
 		if (user?.region) {
 			params.append("role", "region");
 		} else {
@@ -61,9 +66,7 @@ export function SatisfactionGaugeChart({ filters }: Props) {
 		}
 
 		const queryString = params.toString();
-		const fullEndpoint = queryString
-			? `${baseUrl}?${queryString}`
-			: baseUrl;
+		const fullEndpoint = queryString ? `${baseUrl}?${queryString}` : baseUrl;
 
 		// Debug logging to verify filters are being applied
 		console.log(
@@ -84,11 +87,9 @@ export function SatisfactionGaugeChart({ filters }: Props) {
 
 	// Extract the most recent satisfaction value
 	const currentSatisfaction = useMemo(() => {
-		if (!data || !data.datasets[0]?.data.length) return 0;
+		if (!data || !data.datasets || data.datasets.length === 0 || !data.datasets[0].data || data.datasets[0].data.length === 0) return 0;
 		// Get the most recent value from the dataset
-		return Math.round(
-			data.datasets[0].data[data.datasets[0].data.length - 1]
-		);
+		return Math.round(data.datasets[0].data[data.datasets[0].data.length - 1]);
 	}, [data]);
 
 	// Get sentiment icon based on percentage
@@ -197,36 +198,30 @@ export function SatisfactionGaugeChart({ filters }: Props) {
 								d="M 50,150 A 100,100 0 0,1 150,50"
 								fill="none"
 								stroke="rgb(239, 68, 68)"
-								strokeWidth="30"
-								strokeLinecap="round"
+								strokeWidth="60"
+								strokeLinecap="square"
 							/>
 
-							{/* Yellow arc: 50-80% - STRONGER YELLOW */}
+							{/* Yellow arc: 50-100% (background for green) */}
 							<path
-								d="M 150,50 A 100,100 0 0,1 215,84"
+								d="M 150,50 A 100,100 0 0,1 250,150"
 								fill="none"
 								stroke="rgb(253, 224, 71)"
-								strokeWidth="30"
-								strokeLinecap="round"
+								strokeWidth="60"
+								strokeLinecap="square"
 							/>
 
-							{/* Green arc: 80-100% */}
+							{/* Green arc: 80-100% (overlay) */}
 							<path
-								d="M 215,84 A 100,100 0 0,1 250,150"
+								d="M 208.78,69.10 A 100,100 0 0,1 250,150"
 								fill="none"
 								stroke="rgb(34, 197, 94)"
-								strokeWidth="30"
-								strokeLinecap="round"
+								strokeWidth="60"
+								strokeLinecap="square"
 							/>
 
 							{/* Gauge labels with background circles */}
 							{/* 0% label */}
-							<circle
-								cx="50"
-								cy="150"
-								r="15"
-								fill="rgb(239, 68, 68)"
-							/>
 							<text
 								x="50"
 								y="175"
@@ -238,12 +233,6 @@ export function SatisfactionGaugeChart({ filters }: Props) {
 							</text>
 
 							{/* 50% label - STRONGER YELLOW */}
-							<circle
-								cx="150"
-								cy="50"
-								r="15"
-								fill="rgb(253, 224, 71)"
-							/>
 							<text
 								x="150"
 								y="30"
@@ -255,12 +244,6 @@ export function SatisfactionGaugeChart({ filters }: Props) {
 							</text>
 
 							{/* 100% label */}
-							<circle
-								cx="250"
-								cy="150"
-								r="15"
-								fill="rgb(34, 197, 94)"
-							/>
 							<text
 								x="250"
 								y="175"
