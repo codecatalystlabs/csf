@@ -27,9 +27,20 @@ import { Loader } from "@/components/ui/loader";
 import { BASE_URL, DASHBOARD_ENDPOINTS } from "@/lib/api-config";
 import { useAuth } from "@/app/context/auth-context";
 import { LocationFilterValues } from "@/components/filters/location-filter";
+import { ExtendedLocationFilterValues } from "@/components/dashboard/filter-bar";
 import { authFetcher } from "@/lib/api-utils";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 
@@ -69,7 +80,7 @@ interface CommentsResponse {
 }
 
 interface ClientCommentsTableProps {
-	filters?: LocationFilterValues;
+	filters?: ExtendedLocationFilterValues;
 }
 
 const months = [
@@ -119,21 +130,46 @@ export function ClientCommentsTable({ filters }: ClientCommentsTableProps) {
 		params.append("page", page.toString());
 		params.append("limit", limit.toString());
 
-		// Add time filter parameters if provided
-		if (filters?.time_filter) {
-			params.append("time_filter", filters.time_filter);
-		}
-		if (filters?.year) {
-			params.append("year", filters.year);
-		}
-		if (filters?.month) {
-			params.append("month", filters.month);
-		}
-		if (filters?.quarter) {
-			params.append("quarter", filters.quarter);
-		}
-		if (filters?.date) {
-			params.append("date", filters.date);
+		// Add time period filters from ExtendedLocationFilterValues
+		const timePeriod = filters?.timePeriod || "cumulative";
+		const selectedYear = filters?.selectedYear;
+		const selectedMonth = filters?.selectedMonth;
+		const selectedQuarter = filters?.selectedQuarter;
+		const selectedDate = filters?.selectedDate;
+
+		if (timePeriod === "today") {
+			params.append("time_filter", "today");
+		} else if (timePeriod === "cumulative") {
+			params.append("time_filter", "cumulative");
+		} else if (timePeriod === "by_year") {
+			params.append("time_filter", "by_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+		} else if (timePeriod === "by_month_year") {
+			params.append("time_filter", "by_month_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+			if (selectedMonth) params.append("month", selectedMonth);
+		} else if (timePeriod === "by_quarter_year") {
+			params.append("time_filter", "by_quarter_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+			if (selectedQuarter)
+				params.append("quarter", String(selectedQuarter));
+		} else if (timePeriod === "by_month") {
+			params.append("time_filter", "by_month");
+		} else if (timePeriod === "by_date") {
+			params.append("time_filter", "by_date");
+			if (selectedDate) {
+				params.append(
+					"date_from",
+					selectedDate.toISOString().split("T")[0]
+				);
+				params.append(
+					"date_to",
+					selectedDate.toISOString().split("T")[0]
+				);
+			}
+		} else {
+			// Default to cumulative if no other time period is selected
+			params.append("time_filter", "cumulative");
 		}
 
 		// If region filter is set, use that first
@@ -184,7 +220,8 @@ export function ClientCommentsTable({ filters }: ClientCommentsTableProps) {
 
 	// Get comments for the selected timeframe
 	const comments = useMemo(() => {
-		if (!data || !data.filters[filters?.time_filter || "cumulative"]) return [];
+		if (!data || !data.filters[filters?.time_filter || "cumulative"])
+			return [];
 		return data.filters[filters?.time_filter || "cumulative"];
 	}, [data, filters?.time_filter]);
 
@@ -333,29 +370,36 @@ export function ClientCommentsTable({ filters }: ClientCommentsTableProps) {
 									</TableRow>
 								</TableHeader>
 								<TableBody>
-									{comments.map((comment: Comment, index: number) => (
-										<TableRow
-											key={`${comment.facility}-${index}`}
-										>
-											<TableCell className="font-medium">
-												{formatFacilityName(
-													comment.facility
-												)}
-											</TableCell>
-											<TableCell>
-												{formatFacilityName(
-													comment.servicepoint ||
-														"N/A"
-												)}
-											</TableCell>
-											<TableCell>
-												{comment.date}
-											</TableCell>
-											<TableCell>
-												{comment.comment}
-											</TableCell>
-										</TableRow>
-									))}
+									{comments.map(
+										(
+											comment: Comment,
+											index: number
+										) => (
+											<TableRow
+												key={`${comment.facility}-${index}`}
+											>
+												<TableCell className="font-medium">
+													{formatFacilityName(
+														comment.facility
+													)}
+												</TableCell>
+												<TableCell>
+													{formatFacilityName(
+														comment.servicepoint ||
+															"N/A"
+													)}
+												</TableCell>
+												<TableCell>
+													{comment.date}
+												</TableCell>
+												<TableCell>
+													{
+														comment.comment
+													}
+												</TableCell>
+											</TableRow>
+										)
+									)}
 								</TableBody>
 							</Table>
 						</div>

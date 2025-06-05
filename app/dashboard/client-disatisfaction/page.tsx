@@ -2,8 +2,8 @@ import type { Metadata } from "next"
 import { ContactsTable } from "@/components/dashboard/contacts-table"
 
 export const metadata: Metadata = {
-  title: "Contacts",
-  description: "Manage your contacts",
+  title: "Client Disatisfaction",
+  description: "Manage your client disatisfaction",
 }
 
 export default function ContactsPage() {

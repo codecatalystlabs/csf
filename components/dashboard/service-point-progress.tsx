@@ -1,44 +1,30 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useMemo } from "react";
 import useSWR from "swr";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Loader } from "@/components/ui/loader";
 import { BASE_URL } from "@/lib/api-config";
 import { Activity } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/app/context/auth-context";
 import { LocationFilterValues } from "@/components/filters/location-filter";
+import { ExtendedLocationFilterValues } from "@/components/dashboard/filter-bar";
 
-// Updated types to match the actual API response
-type TimeFrame =
-	| "today"
-	| "this_month"
-	| "last_month"
-	| "this_year"
-	| "last_year"
-	| "current_quarter"
-	| "previous_quarter"
-	| "cumulative";
-
-// Define the service point data type for a specific time frame
-interface ServicePointTimeFrameData {
+// Define the service point data type
+interface ServicePointData {
 	[key: string]: number;
 }
 
 interface ServicePointResponse {
 	status: string;
-	data: {
-		[key in TimeFrame]: ServicePointTimeFrameData;
-	};
+	data: ServicePointData;
 }
 
 interface ServicePointProgressProps {
-	filters?: LocationFilterValues;
+	filters?: ExtendedLocationFilterValues;
 }
 
 export function ServicePointProgress({ filters }: ServicePointProgressProps) {
-	const [timeframe, setTimeframe] = useState<TimeFrame>("this_month");
 	const { user } = useAuth();
 
 	// Build the endpoint URL with role parameter
@@ -69,6 +55,48 @@ export function ServicePointProgress({ filters }: ServicePointProgressProps) {
 			params.append("role", "region");
 		} else {
 			params.append("role", "national");
+		}
+
+		// Add time period filters
+		const timePeriod = filters?.timePeriod || "cumulative";
+		const selectedYear = filters?.selectedYear;
+		const selectedMonth = filters?.selectedMonth;
+		const selectedQuarter = filters?.selectedQuarter;
+		const selectedDate = filters?.selectedDate;
+
+		if (timePeriod === "today") {
+			params.append("time_filter", "today");
+		} else if (timePeriod === "cumulative") {
+			params.append("time_filter", "cumulative");
+		} else if (timePeriod === "by_year") {
+			params.append("time_filter", "by_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+		} else if (timePeriod === "by_month_year") {
+			params.append("time_filter", "by_month_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+			if (selectedMonth) params.append("month", selectedMonth);
+		} else if (timePeriod === "by_quarter_year") {
+			params.append("time_filter", "by_quarter_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+			if (selectedQuarter)
+				params.append("quarter", String(selectedQuarter));
+		} else if (timePeriod === "by_month") {
+			params.append("time_filter", "by_month");
+		} else if (timePeriod === "by_date") {
+			params.append("time_filter", "by_date");
+			if (selectedDate) {
+				params.append(
+					"date_from",
+					selectedDate.toISOString().split("T")[0]
+				);
+				params.append(
+					"date_to",
+					selectedDate.toISOString().split("T")[0]
+				);
+			}
+		} else {
+			// Default to cumulative if no other time period is selected
+			params.append("time_filter", "cumulative");
 		}
 
 		const queryString = params.toString();
@@ -114,20 +142,19 @@ export function ServicePointProgress({ filters }: ServicePointProgressProps) {
 	if (!data) return null;
 
 	// Get data for selected timeframe
-	const servicePointItems =
-		data?.data && data.data[timeframe]
-			? Object.entries(data.data[timeframe])
-					.map(([name, value]) => ({
-						name: formatServicePointName(name),
-						originalName: name,
-						// Ensure value is a number and handle null/undefined
-						value: typeof value === "number" ? value : 0,
-						color: getProgressColor(
-							typeof value === "number" ? value : 0
-						),
-					}))
-					.sort((a, b) => b.value - a.value) // Sort by value descending
-			: [];
+	const servicePointItems = data?.data
+		? Object.entries(data.data)
+				.map(([name, value]) => ({
+					name: formatServicePointName(name),
+					originalName: name,
+					// Ensure value is a number and handle null/undefined
+					value: typeof value === "number" ? value : 0,
+					color: getProgressColor(
+						typeof value === "number" ? value : 0
+					),
+				}))
+				.sort((a, b) => b.value - a.value) // Sort by value descending
+		: [];
 
 	return (
 		<Card>
@@ -139,28 +166,6 @@ export function ServicePointProgress({ filters }: ServicePointProgressProps) {
 			</CardHeader>
 
 			<CardContent className="space-y-4">
-				<Tabs
-					defaultValue="this_month"
-					className="w-full"
-					value={timeframe}
-					onValueChange={(value) =>
-						setTimeframe(value as TimeFrame)
-					}
-				>
-					<TabsList className="grid w-full grid-cols-4">
-						<TabsTrigger value="today">Today</TabsTrigger>
-						<TabsTrigger value="this_month">
-							This Month
-						</TabsTrigger>
-						<TabsTrigger value="last_month">
-							Last Month
-						</TabsTrigger>
-						<TabsTrigger value="cumulative">
-							Cumulative
-						</TabsTrigger>
-					</TabsList>
-				</Tabs>
-
 				<div className="space-y-4">
 					{servicePointItems.map((point) => (
 						<div

@@ -6,26 +6,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DASHBOARD_ENDPOINTS } from "@/lib/api-config";
 import { authFetcher } from "@/lib/api-utils";
 import { LocationFilterValues } from "@/components/filters/location-filter";
+import { ExtendedLocationFilterValues } from "@/components/dashboard/filter-bar";
 import { Gauge } from "lucide-react";
 import { useAuth } from "@/app/context/auth-context";
 
 // Define the data structure expected from the API
-interface SatisfactionTrendData {
-	labels: string[];
-	datasets: {
-		label: string;
-		data: number[];
-	}[];
+interface SatisfactionData {
+	satisfaction_percentage: number;
 }
 
+// Create a type for the props
 interface Props {
-	filters?: LocationFilterValues & {
-		timeFilter?: string;
-		year?: number;
-		quarter?: number;
-		date_from?: string;
-		date_to?: string;
-	};
+	filters?: ExtendedLocationFilterValues;
 }
 
 export function SatisfactionGaugeChart({ filters }: Props) {
@@ -37,36 +29,71 @@ export function SatisfactionGaugeChart({ filters }: Props) {
 		const baseUrl = DASHBOARD_ENDPOINTS.SATISFACTION_TREND;
 		const params = new URLSearchParams();
 
-		if (filters?.timeFilter) {
-			params.append("time_filter", filters.timeFilter);
-			if (filters.timeFilter === "by_quarter_year") {
-				if (filters.year) params.append("year", String(filters.year));
-				if (filters.quarter) params.append("quarter", String(filters.quarter));
-			}
-			if (filters.timeFilter === "by_date") {
-				if (filters.date_from) params.append("date_from", filters.date_from);
-				if (filters.date_to) params.append("date_to", filters.date_to);
-			}
-		} else {
-			params.append("time_filter", "cumulative");
-		}
-
+		// If region filter is set, use that first
 		if (filters?.region) {
 			params.append("region", filters.region);
-		} else if (user?.region) {
+		}
+		// Otherwise use user's region if available
+		else if (user?.region) {
 			params.append("region", user.region);
 		}
+
 		if (filters?.district) params.append("district", filters.district);
 		if (filters?.facility) params.append("facility", filters.facility);
 
+		// Set role parameter based on user's region
 		if (user?.region) {
 			params.append("role", "region");
 		} else {
 			params.append("role", "national");
 		}
 
+		// Add time period filters
+		const timePeriod = filters?.timePeriod || "cumulative";
+		const selectedYear = filters?.selectedYear;
+		const selectedMonth = filters?.selectedMonth;
+		const selectedQuarter = filters?.selectedQuarter;
+		const selectedDate = filters?.selectedDate;
+
+		if (timePeriod === "today") {
+			params.append("time_filter", "today");
+		} else if (timePeriod === "cumulative") {
+			params.append("time_filter", "cumulative");
+		} else if (timePeriod === "by_year") {
+			params.append("time_filter", "by_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+		} else if (timePeriod === "by_month_year") {
+			params.append("time_filter", "by_month_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+			if (selectedMonth) params.append("month", selectedMonth);
+		} else if (timePeriod === "by_quarter_year") {
+			params.append("time_filter", "by_quarter_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+			if (selectedQuarter)
+				params.append("quarter", String(selectedQuarter));
+		} else if (timePeriod === "by_month") {
+			params.append("time_filter", "by_month");
+		} else if (timePeriod === "by_date") {
+			params.append("time_filter", "by_date");
+			if (selectedDate) {
+				params.append(
+					"date_from",
+					selectedDate.toISOString().split("T")[0]
+				);
+				params.append(
+					"date_to",
+					selectedDate.toISOString().split("T")[0]
+				);
+			}
+		} else {
+			// Default to cumulative if no other time period is selected
+			params.append("time_filter", "cumulative");
+		}
+
 		const queryString = params.toString();
-		const fullEndpoint = queryString ? `${baseUrl}?${queryString}` : baseUrl;
+		const fullEndpoint = queryString
+			? `${baseUrl}?${queryString}`
+			: baseUrl;
 
 		// Debug logging to verify filters are being applied
 		console.log(
@@ -80,16 +107,15 @@ export function SatisfactionGaugeChart({ filters }: Props) {
 	}, [filters, user?.region]);
 
 	// Fetch satisfaction trend data
-	const { data, error, isLoading } = useSWR<SatisfactionTrendData>(
+	const { data, error, isLoading } = useSWR<SatisfactionData>(
 		endpoint,
 		authFetcher
 	);
 
 	// Extract the most recent satisfaction value
 	const currentSatisfaction = useMemo(() => {
-		if (!data || !data.datasets || data.datasets.length === 0 || !data.datasets[0].data || data.datasets[0].data.length === 0) return 0;
-		// Get the most recent value from the dataset
-		return Math.round(data.datasets[0].data[data.datasets[0].data.length - 1]);
+		if (!data || !data.satisfaction_percentage) return 0;
+		return Math.round(data.satisfaction_percentage);
 	}, [data]);
 
 	// Get sentiment icon based on percentage

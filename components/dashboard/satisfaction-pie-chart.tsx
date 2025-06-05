@@ -15,6 +15,7 @@ import { Loader } from "@/components/ui/loader";
 import { BASE_URL } from "@/lib/api-config";
 import { PieChartIcon } from "lucide-react";
 import { LocationFilterValues } from "@/components/filters/location-filter";
+import { ExtendedLocationFilterValues } from "@/components/dashboard/filter-bar";
 import { useAuth } from "@/app/context/auth-context";
 
 interface SatisfactionData {
@@ -29,7 +30,7 @@ interface SatisfactionData {
 }
 
 interface Props {
-	filters?: LocationFilterValues;
+	filters?: ExtendedLocationFilterValues;
 }
 
 // Fetcher function for the SWR hook
@@ -68,6 +69,48 @@ export function SatisfactionPieChart({ filters }: Props) {
 			params.append("role", "region");
 		} else {
 			params.append("role", "national");
+		}
+
+		// Add time period filters
+		const timePeriod = filters?.timePeriod || "cumulative";
+		const selectedYear = filters?.selectedYear;
+		const selectedMonth = filters?.selectedMonth;
+		const selectedQuarter = filters?.selectedQuarter;
+		const selectedDate = filters?.selectedDate;
+
+		if (timePeriod === "today") {
+			params.append("time_filter", "today");
+		} else if (timePeriod === "cumulative") {
+			params.append("time_filter", "cumulative");
+		} else if (timePeriod === "by_year") {
+			params.append("time_filter", "by_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+		} else if (timePeriod === "by_month_year") {
+			params.append("time_filter", "by_month_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+			if (selectedMonth) params.append("month", selectedMonth);
+		} else if (timePeriod === "by_quarter_year") {
+			params.append("time_filter", "by_quarter_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+			if (selectedQuarter)
+				params.append("quarter", String(selectedQuarter));
+		} else if (timePeriod === "by_month") {
+			params.append("time_filter", "by_month");
+		} else if (timePeriod === "by_date") {
+			params.append("time_filter", "by_date");
+			if (selectedDate) {
+				params.append(
+					"date_from",
+					selectedDate.toISOString().split("T")[0]
+				);
+				params.append(
+					"date_to",
+					selectedDate.toISOString().split("T")[0]
+				);
+			}
+		} else {
+			// Default to cumulative if no other time period is selected
+			params.append("time_filter", "cumulative");
 		}
 
 		const queryString = params.toString();

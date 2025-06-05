@@ -20,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DASHBOARD_ENDPOINTS } from "@/lib/api-config";
 import { authFetcher } from "@/lib/api-utils";
 import { LocationFilterValues } from "@/components/filters/location-filter";
+import { ExtendedLocationFilterValues } from "@/components/dashboard/filter-bar";
 import { TrendingUp } from "lucide-react";
 import { useAuth } from "@/app/context/auth-context";
 
@@ -35,7 +36,7 @@ interface SatisfactionTrendData {
 
 // Create a type for the props
 interface SatisfactionTrendChartProps {
-	filters?: LocationFilterValues;
+	filters?: ExtendedLocationFilterValues;
 }
 
 // Custom tooltip component
@@ -93,6 +94,48 @@ export function SatisfactionTrendChart({
 			params.append("role", "region");
 		} else {
 			params.append("role", "national");
+		}
+
+		// Add time period filters
+		const timePeriod = filters?.timePeriod || "cumulative";
+		const selectedYear = filters?.selectedYear;
+		const selectedMonth = filters?.selectedMonth;
+		const selectedQuarter = filters?.selectedQuarter;
+		const selectedDate = filters?.selectedDate;
+
+		if (timePeriod === "today") {
+			params.append("time_filter", "today");
+		} else if (timePeriod === "cumulative") {
+			params.append("time_filter", "cumulative");
+		} else if (timePeriod === "by_year") {
+			params.append("time_filter", "by_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+		} else if (timePeriod === "by_month_year") {
+			params.append("time_filter", "by_month_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+			if (selectedMonth) params.append("month", selectedMonth);
+		} else if (timePeriod === "by_quarter_year") {
+			params.append("time_filter", "by_quarter_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+			if (selectedQuarter)
+				params.append("quarter", String(selectedQuarter));
+		} else if (timePeriod === "by_month") {
+			params.append("time_filter", "by_month");
+		} else if (timePeriod === "by_date") {
+			params.append("time_filter", "by_date");
+			if (selectedDate) {
+				params.append(
+					"date_from",
+					selectedDate.toISOString().split("T")[0]
+				);
+				params.append(
+					"date_to",
+					selectedDate.toISOString().split("T")[0]
+				);
+			}
+		} else {
+			// Default to cumulative if no other time period is selected
+			params.append("time_filter", "cumulative");
 		}
 
 		const queryString = params.toString();
@@ -279,10 +322,17 @@ export function SatisfactionTrendChart({
 							>
 								{chartData.map((entry, index) => {
 									let color;
-									if (entry.satisfaction < 50) color = "#ef4444"; // red
-									else if (entry.satisfaction < 80) color = "#fde047"; // yellow
+									if (entry.satisfaction < 50)
+										color = "#ef4444"; // red
+									else if (entry.satisfaction < 80)
+										color = "#fde047"; // yellow
 									else color = "#22c55e"; // green
-									return <Cell key={`cell-${index}`} fill={color} />;
+									return (
+										<Cell
+											key={`cell-${index}`}
+											fill={color}
+										/>
+									);
 								})}
 							</Bar>
 						</ComposedChart>

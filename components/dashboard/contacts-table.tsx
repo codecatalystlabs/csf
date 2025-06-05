@@ -8,6 +8,7 @@ import { BASE_URL } from "@/lib/api-config";
 import { ThumbsDown, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/app/context/auth-context";
 import { LocationFilterValues } from "@/components/filters/location-filter";
+import { ExtendedLocationFilterValues } from "@/components/dashboard/filter-bar";
 import { FilterBar } from "@/components/dashboard/filter-bar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -26,8 +27,18 @@ import {
 	ComposedChart,
 } from "recharts";
 import Image from "next/image";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -60,7 +71,7 @@ interface BribeData {
 }
 
 interface BribeByRegionChartProps {
-	filters?: LocationFilterValues;
+	filters?: ExtendedLocationFilterValues;
 }
 
 export function BribeByRegionChart({ filters }: BribeByRegionChartProps) {
@@ -89,6 +100,48 @@ export function BribeByRegionChart({ filters }: BribeByRegionChartProps) {
 		// Add facility filter if provided
 		if (filters?.facility) {
 			params.append("facility", filters.facility);
+		}
+
+		// Add time period filters from ExtendedLocationFilterValues
+		const timePeriod = filters?.timePeriod || "cumulative";
+		const selectedYear = filters?.selectedYear;
+		const selectedMonth = filters?.selectedMonth;
+		const selectedQuarter = filters?.selectedQuarter;
+		const selectedDate = filters?.selectedDate;
+
+		if (timePeriod === "today") {
+			params.append("time_filter", "today");
+		} else if (timePeriod === "cumulative") {
+			params.append("time_filter", "cumulative");
+		} else if (timePeriod === "by_year") {
+			params.append("time_filter", "by_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+		} else if (timePeriod === "by_month_year") {
+			params.append("time_filter", "by_month_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+			if (selectedMonth) params.append("month", selectedMonth);
+		} else if (timePeriod === "by_quarter_year") {
+			params.append("time_filter", "by_quarter_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+			if (selectedQuarter)
+				params.append("quarter", String(selectedQuarter));
+		} else if (timePeriod === "by_month") {
+			params.append("time_filter", "by_month");
+		} else if (timePeriod === "by_date") {
+			params.append("time_filter", "by_date");
+			if (selectedDate) {
+				params.append(
+					"date_from",
+					selectedDate.toISOString().split("T")[0]
+				);
+				params.append(
+					"date_to",
+					selectedDate.toISOString().split("T")[0]
+				);
+			}
+		} else {
+			// Default to cumulative if no other time period is selected
+			params.append("time_filter", "cumulative");
 		}
 
 		// Set role parameter based on user's region
@@ -295,7 +348,7 @@ export function BribeByRegionChart({ filters }: BribeByRegionChartProps) {
 }
 
 interface DissatisfactionParetoChartProps {
-	filters?: LocationFilterValues;
+	filters?: ExtendedLocationFilterValues;
 }
 
 export function DissatisfactionParetoChart({
@@ -303,15 +356,54 @@ export function DissatisfactionParetoChart({
 }: DissatisfactionParetoChartProps) {
 	// Get user from auth context
 	const { user } = useAuth();
-	const [timeframe, setTimeframe] = useState<string>("this_month");
 
 	// Build the endpoint URL with filters
 	const endpoint = useMemo(() => {
 		const baseUrl = `${BASE_URL}/dissatisfaction_pareto`;
 		const params = new URLSearchParams();
 
-		// Add timeframe parameter
-		params.append("timeframe", timeframe);
+		// Add time period filters from ExtendedLocationFilterValues
+		const timePeriod = filters?.timePeriod || "cumulative";
+		const selectedYear = filters?.selectedYear;
+		const selectedMonth = filters?.selectedMonth;
+		const selectedQuarter = filters?.selectedQuarter;
+		const selectedDate = filters?.selectedDate;
+
+		// Map time periods to API timeframe parameter
+		if (timePeriod === "today") {
+			params.append("timeframe", "today");
+		} else if (timePeriod === "cumulative") {
+			params.append("timeframe", "cumulative");
+		} else if (timePeriod === "by_year") {
+			params.append("timeframe", "this_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+		} else if (timePeriod === "by_month_year") {
+			params.append("timeframe", "this_month");
+			if (selectedYear) params.append("year", String(selectedYear));
+			if (selectedMonth) params.append("month", selectedMonth);
+		} else if (timePeriod === "by_quarter_year") {
+			params.append("timeframe", "current_quarter");
+			if (selectedYear) params.append("year", String(selectedYear));
+			if (selectedQuarter)
+				params.append("quarter", String(selectedQuarter));
+		} else if (timePeriod === "by_month") {
+			params.append("timeframe", "this_month");
+		} else if (timePeriod === "by_date") {
+			params.append("timeframe", "today");
+			if (selectedDate) {
+				params.append(
+					"date_from",
+					selectedDate.toISOString().split("T")[0]
+				);
+				params.append(
+					"date_to",
+					selectedDate.toISOString().split("T")[0]
+				);
+			}
+		} else {
+			// Default to this_month if no other time period is selected
+			params.append("timeframe", "this_month");
+		}
 
 		// If region filter is set, use that first
 		if (filters?.region) {
@@ -349,15 +441,16 @@ export function DissatisfactionParetoChart({
 			"DissatisfactionPareto Endpoint:",
 			fullEndpoint,
 			"Filters:",
-			filters,
-			"Timeframe:",
-			timeframe
+			filters
 		);
 
 		return fullEndpoint;
-	}, [filters, user?.region, timeframe]);
+	}, [filters, user?.region]);
 
 	const { data: apiResponse, error, isLoading } = useSWR(endpoint, fetcher);
+
+	// Extract timePeriod for data access
+	const timePeriod = filters?.timePeriod || "cumulative";
 
 	if (isLoading)
 		return (
@@ -371,9 +464,19 @@ export function DissatisfactionParetoChart({
 	if (error) return <div className="text-red-500">Failed to load data</div>;
 	if (!apiResponse) return null;
 
-	// Get data for the selected timeframe
-	const data = apiResponse.data[timeframe] || [];
-	const total = apiResponse.totals[timeframe] || 0;
+	// Get data for the selected timeframe - map timePeriod to API response keys
+	let apiTimeframe = "this_month"; // default
+	if (timePeriod === "today") apiTimeframe = "today";
+	else if (timePeriod === "cumulative") apiTimeframe = "cumulative";
+	else if (timePeriod === "by_year") apiTimeframe = "this_year";
+	else if (timePeriod === "by_month_year") apiTimeframe = "this_month";
+	else if (timePeriod === "by_quarter_year")
+		apiTimeframe = "current_quarter";
+	else if (timePeriod === "by_month") apiTimeframe = "this_month";
+	else if (timePeriod === "by_date") apiTimeframe = "today";
+
+	const data = apiResponse.data[apiTimeframe] || [];
+	const total = apiResponse.totals[apiTimeframe] || 0;
 
 	// Check if we have data for this timeframe
 	if (data.length === 0) {
@@ -388,30 +491,6 @@ export function DissatisfactionParetoChart({
 						<ThumbsDown className="h-5 w-5 text-red-500" />
 					</CardHeader>
 					<CardContent>
-						<div className="mb-4">
-							<Tabs
-								defaultValue={timeframe}
-								className="w-full"
-								onValueChange={(value) =>
-									setTimeframe(value)
-								}
-							>
-								<TabsList className="grid w-full grid-cols-4">
-									<TabsTrigger value="today">
-										Today
-									</TabsTrigger>
-									<TabsTrigger value="this_month">
-										This Month
-									</TabsTrigger>
-									<TabsTrigger value="last_month">
-										Last Month
-									</TabsTrigger>
-									<TabsTrigger value="cumulative">
-										All Time
-									</TabsTrigger>
-								</TabsList>
-							</Tabs>
-						</div>
 						<div className="h-[400px] flex items-center justify-center text-muted-foreground">
 							No dissatisfaction data available for this
 							time period
@@ -546,30 +625,6 @@ export function DissatisfactionParetoChart({
 					/>
 				</CardHeader>
 				<CardContent>
-					<div className="mb-4">
-						<Tabs
-							defaultValue={timeframe}
-							className="w-full"
-							onValueChange={(value) =>
-								setTimeframe(value)
-							}
-						>
-							<TabsList className="grid w-full grid-cols-4">
-								<TabsTrigger value="today">
-									Today
-								</TabsTrigger>
-								<TabsTrigger value="this_month">
-									This Month
-								</TabsTrigger>
-								<TabsTrigger value="last_month">
-									Last Month
-								</TabsTrigger>
-								<TabsTrigger value="cumulative">
-									All Time
-								</TabsTrigger>
-							</TabsList>
-						</Tabs>
-					</div>
 					<div className="h-[500px] mt-4">
 						<ResponsiveContainer
 							width="100%"
@@ -871,10 +926,10 @@ export function DissatisfactionParetoChart({
 
 // Add the new client component with filters
 export function BribeByRegionChartWithFilters() {
-	const [filters, setFilters] = useState<LocationFilterValues>({});
+	const [filters, setFilters] = useState<ExtendedLocationFilterValues>({});
 
 	const handleFilterChange = useCallback(
-		(newFilters: LocationFilterValues) => {
+		(newFilters: ExtendedLocationFilterValues) => {
 			console.log("Filter changed in Bribe chart:", newFilters);
 			setFilters(newFilters);
 		},
@@ -914,15 +969,17 @@ export function BribeByRegionChartWithFilters() {
 
 // Add the DissatisfactionParetoChartWithFilters component
 export function DissatisfactionParetoChartWithFilters() {
-	const [filters, setFilters] = useState<LocationFilterValues>({});
+	const [filters, setFilters] = useState<ExtendedLocationFilterValues>({});
 	const [timeframe, setTimeframe] = useState<string>("this_month");
 	const [selectedMonth, setSelectedMonth] = useState("");
 	const [selectedQuarter, setSelectedQuarter] = useState("");
 	const [selectedYear, setSelectedYear] = useState("");
-	const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+	const [selectedDate, setSelectedDate] = useState<Date | undefined>(
+		undefined
+	);
 
 	const handleFilterChange = useCallback(
-		(newFilters: LocationFilterValues) => {
+		(newFilters: ExtendedLocationFilterValues) => {
 			setFilters(newFilters);
 		},
 		[]
@@ -965,120 +1022,22 @@ export function DissatisfactionParetoChartWithFilters() {
 				onFilterChange={handleFilterChange}
 			/>
 
-			{/* Time Filters UI */}
-			<div className="flex flex-wrap gap-2 items-center mb-4">
-				<Button
-					variant={timeframe === "today" ? "default" : "outline"}
-					onClick={() => {
-						setTimeframe("today");
-						setSelectedYear("");
-						setSelectedMonth("");
-						setSelectedQuarter("");
-						setSelectedDate(undefined);
-					}}
-					size="sm"
-				>
-					Today
-				</Button>
-				{/* Month Dropdown (enabled if year is selected) */}
-				<Select value={selectedMonth} onValueChange={(value) => {
-					setSelectedMonth(value);
-					setTimeframe("this_month");
-					setSelectedQuarter("");
-					setSelectedDate(undefined);
-				}} disabled={!selectedYear}>
-					<SelectTrigger className="w-[120px]">
-						<SelectValue placeholder="Month" />
-					</SelectTrigger>
-					<SelectContent>
-						{months.map((month) => (
-							<SelectItem key={month.value} value={month.value}>{month.label}</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-				{/* Quarter Dropdown (enabled if year is selected) */}
-				<Select value={selectedQuarter} onValueChange={(value) => {
-					setSelectedQuarter(value);
-					setTimeframe("current_quarter");
-					setSelectedMonth("");
-					setSelectedDate(undefined);
-				}} disabled={!selectedYear || !!selectedMonth}>
-					<SelectTrigger className="w-[120px]">
-						<SelectValue placeholder="Quarter" />
-					</SelectTrigger>
-					<SelectContent>
-						{quarters.map((q) => (
-							<SelectItem key={q.value} value={q.value}>{q.label}</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-				{/* Year Dropdown */}
-				<Select value={selectedYear} onValueChange={(value) => {
-					setSelectedYear(value);
-					setTimeframe("this_year");
-					setSelectedMonth("");
-					setSelectedQuarter("");
-					setSelectedDate(undefined);
-				}}>
-					<SelectTrigger className="w-[120px]">
-						<SelectValue placeholder="Year" />
-					</SelectTrigger>
-					<SelectContent>
-						{availableYears.map((year) => (
-							<SelectItem key={year} value={year.toString()}>{year}</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-				<Button
-					variant={timeframe === "cumulative" ? "default" : "outline"}
-					onClick={() => {
-						setTimeframe("cumulative");
-						setSelectedYear("");
-						setSelectedMonth("");
-						setSelectedQuarter("");
-						setSelectedDate(undefined);
-					}}
-					size="sm"
-				>
-					Cumulative
-				</Button>
-				{/* Calendar for date selection as a popover */}
-				<Popover>
-					<PopoverTrigger asChild>
-						<Button
-							variant="outline"
-							className={cn(
-								"w-[220px] justify-start text-left font-normal",
-								!selectedDate && "text-muted-foreground"
-							)}
-						>
-							{selectedDate ? selectedDate.toLocaleDateString() : "Pick a date"}
-						</Button>
-					</PopoverTrigger>
-					<PopoverContent className="w-auto p-0">
-						<Calendar
-							mode="single"
-							selected={selectedDate}
-							onSelect={(date) => {
-								setSelectedDate(date);
-								setTimeframe("by_date");
-								setSelectedYear("");
-								setSelectedMonth("");
-								setSelectedQuarter("");
-							}}
-							className="rounded-md border"
-						/>
-					</PopoverContent>
-				</Popover>
-			</div>
-
 			{/* Display active filters */}
 			{(filters.region || filters.district || filters.facility) && (
 				<div className="p-2 border rounded-md bg-blue-50 text-blue-700 text-sm mb-4">
 					<strong>Filters applied:</strong>
-					{filters.region && ` Region: ${filters.region.replace(/_/g, " ")}`}
-					{filters.district && ` | District: ${filters.district.replace(/_/g, " ")}`}
-					{filters.facility && ` | Facility: ${filters.facility.replace(/_/g, " ")}`}
+					{filters.region &&
+						` Region: ${filters.region.replace(/_/g, " ")}`}
+					{filters.district &&
+						` | District: ${filters.district.replace(
+							/_/g,
+							" "
+						)}`}
+					{filters.facility &&
+						` | Facility: ${filters.facility.replace(
+							/_/g,
+							" "
+						)}`}
 				</div>
 			)}
 

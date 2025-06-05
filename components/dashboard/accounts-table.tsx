@@ -1,60 +1,25 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
-import { MoreHorizontal, ChevronDown, Search, ArrowUpDown } from "lucide-react";
+import React, { useMemo } from "react";
 import useSWR from "swr";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
-
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuLabel,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { BASE_URL } from "@/lib/api-config";
 import { useAuth } from "@/app/context/auth-context";
-import { FilterBar } from "@/components/dashboard/filter-bar";
-import { LocationFilterValues } from "@/components/filters/location-filter";
+import { ExtendedLocationFilterValues } from "@/components/dashboard/filter-bar";
 import { authFetcher } from "@/lib/api-utils";
 import {
-	BarChart,
-	Bar,
+	LineChart,
+	Line,
 	XAxis,
 	YAxis,
 	CartesianGrid,
 	Tooltip,
 	ResponsiveContainer,
-	Cell,
-	LabelList,
-	LineChart,
-	Line,
 } from "recharts";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { cn } from "@/lib/utils";
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+interface SatisfactionComponentProps {
+	filters?: ExtendedLocationFilterValues;
+}
 
 type TimePeriod =
 	| "today"
@@ -67,11 +32,6 @@ type TimePeriod =
 	| "previous_quarter"
 	| "last_12_months"
 	| "by_date";
-
-interface SatisfactionComponentProps {
-	filters?: LocationFilterValues;
-	timeFilter?: TimePeriod;
-}
 
 interface TimeBasedSummary {
 	total_clients: number;
@@ -98,21 +58,13 @@ interface ApiResponse {
 	};
 }
 
-function SatisfactionSummaryTable({
-	filters,
-	timeFilter,
-}: SatisfactionComponentProps) {
+function SatisfactionSummaryTable({ filters }: SatisfactionComponentProps) {
 	const { user } = useAuth();
 
 	// Build the endpoint URL with filters
 	const endpoint = useMemo(() => {
 		const baseUrl = `${BASE_URL}/trends_table`;
 		const params = new URLSearchParams();
-
-		// Add time filter parameter if specified
-		if (timeFilter) {
-			params.append("time_filter", timeFilter);
-		}
 
 		// If region filter is set, use that first
 		if (filters?.region) {
@@ -150,13 +102,11 @@ function SatisfactionSummaryTable({
 			"Satisfaction Summary Endpoint:",
 			fullEndpoint,
 			"Filters:",
-			filters,
-			"TimeFilter:",
-			timeFilter
+			filters
 		);
 
 		return fullEndpoint;
-	}, [filters, user?.region, timeFilter]);
+	}, [filters, user?.region]);
 
 	const { data, error, isLoading } = useSWR<ApiResponse>(
 		endpoint,
@@ -207,7 +157,7 @@ function SatisfactionSummaryTable({
 	};
 
 	// Handle last_12_months data differently
-	if (timeFilter === "last_12_months") {
+	if (data.summary.last_12_months) {
 		const monthlyData = data.summary.last_12_months;
 		if (!monthlyData.labels || !monthlyData.percentages) {
 			return (
@@ -415,169 +365,20 @@ function SatisfactionSummaryTable({
 	);
 }
 
-const months = [
-	{ value: "01", label: "January" },
-	{ value: "02", label: "February" },
-	{ value: "03", label: "March" },
-	{ value: "04", label: "April" },
-	{ value: "05", label: "May" },
-	{ value: "06", label: "June" },
-	{ value: "07", label: "July" },
-	{ value: "08", label: "August" },
-	{ value: "09", label: "September" },
-	{ value: "10", label: "October" },
-	{ value: "11", label: "November" },
-	{ value: "12", label: "December" },
-];
-const quarters = [
-	{ value: "Q1", label: "Q1 (Jan-Mar)" },
-	{ value: "Q2", label: "Q2 (Apr-Jun)" },
-	{ value: "Q3", label: "Q3 (Jul-Sep)" },
-	{ value: "Q4", label: "Q4 (Oct-Dec)" },
-];
-const generateYears = () => {
-	const currentYear = new Date().getFullYear();
-	const years = [];
-	for (let year = 2020; year <= currentYear; year++) {
-		years.push(year);
-	}
-	return years;
-};
-const availableYears = generateYears();
-
-export function SatisfactionTrendsWithFilters() {
-	const [filters, setFilters] = useState<LocationFilterValues>({});
-	const [timePeriod, setTimePeriod] = useState<TimePeriod>("last_12_months");
-
-	const handleFilterChange = useCallback(
-		(newFilters: LocationFilterValues) => {
-			console.log(
-				"Filter changed in Satisfaction Trends:",
-				newFilters
-			);
-			setFilters(newFilters);
-		},
-		[]
-	);
-
-	const handlePeriodChange = (period: TimePeriod) => {
-		setTimePeriod(period);
-	};
-
+export function SatisfactionTrendsWithFilters({
+	filters,
+}: {
+	filters?: ExtendedLocationFilterValues;
+}) {
 	return (
 		<div className="flex flex-col gap-4">
-			<FilterBar
-				restrictToUserRegion={true}
-				onFilterChange={handleFilterChange}
-			/>
-
-			{/* Time Filter Buttons */}
-			<div className="flex flex-wrap gap-2 items-center">
-				<Button
-					variant={
-						timePeriod === "today" ? "default" : "outline"
-					}
-					onClick={() => handlePeriodChange("today")}
-					size="sm"
-				>
-					Today
-				</Button>
-				<Button
-					variant={
-						timePeriod === "this_month"
-							? "default"
-							: "outline"
-					}
-					onClick={() => handlePeriodChange("this_month")}
-					size="sm"
-				>
-					This Month
-				</Button>
-				<Button
-					variant={
-						timePeriod === "current_quarter"
-							? "default"
-							: "outline"
-					}
-					onClick={() => handlePeriodChange("current_quarter")}
-					size="sm"
-				>
-					Current Quarter
-				</Button>
-				<Button
-					variant={
-						timePeriod === "previous_quarter"
-							? "default"
-							: "outline"
-					}
-					onClick={() => handlePeriodChange("previous_quarter")}
-					size="sm"
-				>
-					Previous Quarter
-				</Button>
-				<Button
-					variant={
-						timePeriod === "this_year" ? "default" : "outline"
-					}
-					onClick={() => handlePeriodChange("this_year")}
-					size="sm"
-				>
-					This Year
-				</Button>
-				<Button
-					variant={
-						timePeriod === "last_month"
-							? "default"
-							: "outline"
-					}
-					onClick={() => handlePeriodChange("last_month")}
-					size="sm"
-				>
-					Last Month
-				</Button>
-				<Button
-					variant={
-						timePeriod === "last_year" ? "default" : "outline"
-					}
-					onClick={() => handlePeriodChange("last_year")}
-					size="sm"
-				>
-					Last Year
-				</Button>
-				<Button
-					variant={
-						timePeriod === "last_12_months"
-							? "default"
-							: "outline"
-					}
-					onClick={() => handlePeriodChange("last_12_months")}
-					size="sm"
-				>
-					Last 12 Months
-				</Button>
-				<Button
-					variant={
-						timePeriod === "cumulative"
-							? "default"
-							: "outline"
-					}
-					onClick={() => handlePeriodChange("cumulative")}
-					size="sm"
-				>
-					Cumulative
-				</Button>
-			</div>
-
 			<Card>
 				<CardHeader>
 					<CardTitle>Satisfaction Rate Trends</CardTitle>
 				</CardHeader>
 				<CardContent>
 					{/* Chart visualization */}
-					<SatisfactionTrendsChart
-						filters={filters}
-						timeFilter={timePeriod}
-					/>
+					<SatisfactionTrendsChart filters={filters} />
 
 					{/* Chart legend */}
 					<div className="flex justify-center gap-6 text-sm mt-4 mb-6">
@@ -596,168 +397,29 @@ export function SatisfactionTrendsWithFilters() {
 					</div>
 				</CardContent>
 			</Card>
-
-			{/* Commented out table for now */}
-			{/* <Card>
-				<CardHeader>
-					<CardTitle>Detailed Satisfaction Summary</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<SatisfactionSummaryTable 
-						filters={filters} 
-						timeFilter={timePeriod}
-					/>
-				</CardContent>
-			</Card> */}
 		</div>
 	);
 }
 
-export function AccountsTable() {
-	const [filters, setFilters] = useState<LocationFilterValues>({});
-	const [timePeriod, setTimePeriod] = useState<TimePeriod>("this_month");
-	const [selectedMonth, setSelectedMonth] = useState("");
-	const [selectedQuarter, setSelectedQuarter] = useState("");
-	const [selectedYear, setSelectedYear] = useState("");
-	const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
-
-	const handleFilterChange = useCallback(
-		(newFilters: LocationFilterValues) => {
-			setFilters(newFilters);
-		},
-		[]
-	);
-
-	const handlePeriodChange = (period: TimePeriod) => {
-		setTimePeriod(period);
-	};
-
+export function AccountsTable({
+	filters,
+}: {
+	filters?: ExtendedLocationFilterValues;
+}) {
 	return (
 		<div className="flex flex-col gap-4">
-			<FilterBar
-				restrictToUserRegion={true}
-				onFilterChange={handleFilterChange}
-			/>
-
-			{/* Time Filters UI */}
-			<div className="flex flex-wrap gap-2 items-center mb-4">
-				<Button
-					variant={timePeriod === "today" ? "default" : "outline"}
-					onClick={() => {
-						setTimePeriod("today");
-						setSelectedYear("");
-						setSelectedMonth("");
-						setSelectedQuarter("");
-						setSelectedDate(undefined);
-					}}
-					size="sm"
-				>
-					Today
-				</Button>
-				{/* Month Dropdown (enabled if year is selected) */}
-				<Select value={selectedMonth} onValueChange={(value) => {
-					setSelectedMonth(value);
-					setTimePeriod("this_month");
-					setSelectedQuarter("");
-					setSelectedDate(undefined);
-				}} disabled={!selectedYear}>
-					<SelectTrigger className="w-[120px]">
-						<SelectValue placeholder="Month" />
-					</SelectTrigger>
-					<SelectContent>
-						{months.map((month) => (
-							<SelectItem key={month.value} value={month.value}>{month.label}</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-				{/* Quarter Dropdown (enabled if year is selected) */}
-				<Select value={selectedQuarter} onValueChange={(value) => {
-					setSelectedQuarter(value);
-					setTimePeriod("current_quarter");
-					setSelectedMonth("");
-					setSelectedDate(undefined);
-				}} disabled={!selectedYear || !!selectedMonth}>
-					<SelectTrigger className="w-[120px]">
-						<SelectValue placeholder="Quarter" />
-					</SelectTrigger>
-					<SelectContent>
-						{quarters.map((q) => (
-							<SelectItem key={q.value} value={q.value}>{q.label}</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-				{/* Year Dropdown */}
-				<Select value={selectedYear} onValueChange={(value) => {
-					setSelectedYear(value);
-					setTimePeriod("this_year");
-					setSelectedMonth("");
-					setSelectedQuarter("");
-					setSelectedDate(undefined);
-				}}>
-					<SelectTrigger className="w-[120px]">
-						<SelectValue placeholder="Year" />
-					</SelectTrigger>
-					<SelectContent>
-						{availableYears.map((year) => (
-							<SelectItem key={year} value={year.toString()}>{year}</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-				<Button
-					variant={timePeriod === "cumulative" ? "default" : "outline"}
-					onClick={() => {
-						setTimePeriod("cumulative");
-						setSelectedYear("");
-						setSelectedMonth("");
-						setSelectedQuarter("");
-						setSelectedDate(undefined);
-					}}
-					size="sm"
-				>
-					Cumulative
-				</Button>
-				{/* Calendar for date selection as a popover */}
-				<Popover>
-					<PopoverTrigger asChild>
-						<Button
-							variant="outline"
-							className={cn(
-								"w-[220px] justify-start text-left font-normal",
-								!selectedDate && "text-muted-foreground"
-							)}
-						>
-							{selectedDate ? selectedDate.toLocaleDateString() : "Pick a date"}
-						</Button>
-					</PopoverTrigger>
-					<PopoverContent className="w-auto p-0">
-						<Calendar
-							mode="single"
-							selected={selectedDate}
-							onSelect={(date) => {
-								setSelectedDate(date);
-								setTimePeriod("by_date" as TimePeriod);
-								setSelectedYear("");
-								setSelectedMonth("");
-								setSelectedQuarter("");
-							}}
-							className="rounded-md border"
-						/>
-					</PopoverContent>
-				</Popover>
-			</div>
-
 			{/* Display active filters */}
-			{(filters.region || filters.district || filters.facility) && (
+			{(filters?.region || filters?.district || filters?.facility) && (
 				<div className="p-2 border rounded-md bg-blue-50 text-blue-700 text-sm mb-4">
 					<strong>Filters applied:</strong>
-					{filters.region &&
+					{filters?.region &&
 						` Region: ${filters.region.replace(/_/g, " ")}`}
-					{filters.district &&
+					{filters?.district &&
 						` | District: ${filters.district.replace(
 							/_/g,
 							" "
 						)}`}
-					{filters.facility &&
+					{filters?.facility &&
 						` | Facility: ${filters.facility.replace(
 							/_/g,
 							" "
@@ -771,10 +433,7 @@ export function AccountsTable() {
 				</CardHeader>
 				<CardContent>
 					{/* Chart visualization */}
-					<SatisfactionTrendsChart
-						filters={filters}
-						timeFilter={timePeriod}
-					/>
+					<SatisfactionTrendsChart filters={filters} />
 
 					{/* Chart legend */}
 					<div className="flex justify-center gap-6 text-sm mt-4 mb-6">
@@ -793,27 +452,11 @@ export function AccountsTable() {
 					</div>
 				</CardContent>
 			</Card>
-
-			{/* Commented out table for now */}
-			{/* <Card>
-				<CardHeader>
-					<CardTitle>Detailed Satisfaction Summary</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<SatisfactionSummaryTable 
-						filters={filters} 
-						timeFilter={timePeriod}
-					/>
-				</CardContent>
-			</Card> */}
 		</div>
 	);
 }
 
-function SatisfactionTrendsChart({
-	filters,
-	timeFilter,
-}: SatisfactionComponentProps) {
+function SatisfactionTrendsChart({ filters }: SatisfactionComponentProps) {
 	const { user } = useAuth();
 
 	// Build the endpoint URL with filters
@@ -821,15 +464,59 @@ function SatisfactionTrendsChart({
 		const baseUrl = `${BASE_URL}/trends_table`;
 		const params = new URLSearchParams();
 
-		// Add time filter parameter if specified
-		if (timeFilter) {
-			params.append("time_filter", timeFilter);
+		// Use time period filters from main filter bar
+		if (filters?.timePeriod) {
+			const timePeriod = filters.timePeriod;
+			const selectedYear = filters.selectedYear;
+			const selectedMonth = filters.selectedMonth;
+			const selectedQuarter = filters.selectedQuarter;
+			const selectedDate = filters.selectedDate;
+
+			if (timePeriod === "today") {
+				params.append("time_filter", "today");
+			} else if (timePeriod === "cumulative") {
+				params.append("time_filter", "cumulative");
+			} else if (timePeriod === "by_year") {
+				params.append("time_filter", "by_year");
+				if (selectedYear)
+					params.append("year", String(selectedYear));
+			} else if (timePeriod === "by_month_year") {
+				params.append("time_filter", "by_month_year");
+				if (selectedYear)
+					params.append("year", String(selectedYear));
+				if (selectedMonth) params.append("month", selectedMonth);
+			} else if (timePeriod === "by_quarter_year") {
+				params.append("time_filter", "by_quarter_year");
+				if (selectedYear)
+					params.append("year", String(selectedYear));
+				if (selectedQuarter)
+					params.append("quarter", String(selectedQuarter));
+			} else if (timePeriod === "by_month") {
+				params.append("time_filter", "by_month");
+			} else if (timePeriod === "by_date") {
+				params.append("time_filter", "by_date");
+				if (selectedDate) {
+					params.append(
+						"date_from",
+						selectedDate.toISOString().split("T")[0]
+					);
+					params.append(
+						"date_to",
+						selectedDate.toISOString().split("T")[0]
+					);
+				}
+			} else {
+				// Default to cumulative if no other time period is selected
+				params.append("time_filter", "cumulative");
+			}
 		}
 
 		// If region filter is set, use that first
 		if (filters?.region) {
 			params.append("region", filters.region);
-		} else if (user?.region) {
+		}
+		// Otherwise use user's region if available
+		else if (user?.region) {
 			params.append("region", user.region);
 		}
 		if (filters?.district) {
@@ -844,16 +531,20 @@ function SatisfactionTrendsChart({
 			params.append("role", "national");
 		}
 		const queryString = params.toString();
-		const fullEndpoint = queryString ? `${baseUrl}?${queryString}` : baseUrl;
+		const fullEndpoint = queryString
+			? `${baseUrl}?${queryString}`
+			: baseUrl;
 		return fullEndpoint;
-	}, [filters, user?.region, timeFilter]);
+	}, [filters, user?.region]);
 
 	const { data, error, isLoading } = useSWR<any>(endpoint, authFetcher);
 
 	// Handle loading state
 	if (isLoading) return <div>Loading chart...</div>;
-	if (error) return <div className="text-red-500">Failed to load chart data</div>;
-	if (!data || !data.labels || !data.datasets || !data.datasets[0]) return null;
+	if (error)
+		return <div className="text-red-500">Failed to load chart data</div>;
+	if (!data || !data.labels || !data.datasets || !data.datasets[0])
+		return null;
 
 	// Transform the data for Recharts
 	const chartData = data.labels.map((label: string, idx: number) => ({
@@ -865,17 +556,36 @@ function SatisfactionTrendsChart({
 	const formatMonth = (monthStr: string) => {
 		const [year, month] = monthStr.split("-");
 		const monthNames = [
-			"Jan", "Feb", "Mar", "Apr", "May", "Jun",
-			"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+			"Jan",
+			"Feb",
+			"Mar",
+			"Apr",
+			"May",
+			"Jun",
+			"Jul",
+			"Aug",
+			"Sep",
+			"Oct",
+			"Nov",
+			"Dec",
 		];
 		return `${monthNames[parseInt(month, 10) - 1]} ${year}`;
 	};
 
 	return (
 		<div className="h-[400px] mt-4">
-			<ResponsiveContainer width="100%" height="100%">
-				<LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-					<CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+			<ResponsiveContainer
+				width="100%"
+				height="100%"
+			>
+				<LineChart
+					data={chartData}
+					margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+				>
+					<CartesianGrid
+						strokeDasharray="3 3"
+						stroke="#e5e7eb"
+					/>
 					<XAxis
 						dataKey="label"
 						tickFormatter={formatMonth}
@@ -895,7 +605,10 @@ function SatisfactionTrendsChart({
 							style: { textAnchor: "middle" },
 						}}
 					/>
-					<Tooltip formatter={(v) => `${v}%`} labelFormatter={formatMonth} />
+					<Tooltip
+						formatter={(v) => `${v}%`}
+						labelFormatter={formatMonth}
+					/>
 					<Line
 						type="monotone"
 						dataKey="value"

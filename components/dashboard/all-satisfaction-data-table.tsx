@@ -6,8 +6,7 @@ import { useAuth } from "@/app/context/auth-context";
 import { Loader } from "@/components/ui/loader";
 import { BASE_URL } from "@/lib/api-config";
 import { authFetcher } from "@/lib/api-utils";
-import { FilterBar } from "@/components/dashboard/filter-bar";
-import { LocationFilterValues } from "@/components/filters/location-filter";
+import { ExtendedLocationFilterValues } from "@/components/dashboard/filter-bar";
 import {
 	Table,
 	TableBody,
@@ -28,10 +27,6 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { cn } from "@/lib/utils";
 
 interface SatisfactionData {
 	meta_instance_id: string;
@@ -62,24 +57,6 @@ interface SatisfactionData {
 	system_submission_datession_date: string;
 }
 
-type TimeFilterType =
-	| "today"
-	| "this_month"
-	| "last_month"
-	| "current_quarter"
-	| "previous_quarter"
-	| "this_year"
-	| "cumulative"
-	| "by_date";
-
-interface LocationFilterValuesWithDates extends LocationFilterValues {
-	startDate: string | undefined;
-	endDate: string | undefined;
-	startYear: number | undefined;
-	endYear: number | undefined;
-	timeFilter: TimeFilterType;
-}
-
 interface ApiPagination {
 	current_page: number;
 	per_page: number;
@@ -95,9 +72,6 @@ interface ApiFiltersApplied {
 	facility: string | null;
 	date_from: string | null;
 	date_to: string | null;
-	time_filter: TimeFilterType;
-	start_date: string | null;
-	end_date: string | null;
 	page: number;
 	per_page: number;
 }
@@ -106,7 +80,6 @@ interface ApiResponse {
 	status: string;
 	filters_applied: ApiFiltersApplied;
 	data: {
-		time_filter: TimeFilterType;
 		pagination: ApiPagination;
 		data: SatisfactionData[];
 	};
@@ -114,66 +87,20 @@ interface ApiResponse {
 
 const PAGE_SIZE = 20;
 
-interface FilterBarProps {
-	restrictToUserRegion?: boolean;
-	onFilterChange: (filters: LocationFilterValuesWithDates) => void;
+interface AllSatisfactionDataTableProps {
+	filters?: ExtendedLocationFilterValues;
 }
 
-// Add months, quarters, and availableYears definitions
-const months = [
-	{ value: "01", label: "January" },
-	{ value: "02", label: "February" },
-	{ value: "03", label: "March" },
-	{ value: "04", label: "April" },
-	{ value: "05", label: "May" },
-	{ value: "06", label: "June" },
-	{ value: "07", label: "July" },
-	{ value: "08", label: "August" },
-	{ value: "09", label: "September" },
-	{ value: "10", label: "October" },
-	{ value: "11", label: "November" },
-	{ value: "12", label: "December" },
-];
-const quarters = [
-	{ value: "Q1", label: "Q1 (Jan-Mar)" },
-	{ value: "Q2", label: "Q2 (Apr-Jun)" },
-	{ value: "Q3", label: "Q3 (Jul-Sep)" },
-	{ value: "Q4", label: "Q4 (Oct-Dec)" },
-];
-const generateYears = () => {
-	const currentYear = new Date().getFullYear();
-	const years = [];
-	for (let year = 2020; year <= currentYear; year++) {
-		years.push(year);
-	}
-	return years;
-};
-const availableYears = generateYears();
-
-export function AllSatisfactionDataTable() {
+export function AllSatisfactionDataTable({
+	filters,
+}: AllSatisfactionDataTableProps) {
 	const { user } = useAuth();
-	const [filters, setFilters] = useState<LocationFilterValuesWithDates>({
-		region: "",
-		district: "",
-		facility: "",
-		startDate: undefined,
-		endDate: undefined,
-		startYear: undefined,
-		endYear: undefined,
-		timeFilter: "this_year",
-	});
 	const [currentPage, setCurrentPage] = useState<number>(1);
 	const [allData, setAllData] = useState<SatisfactionData[]>([]);
 	const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
 	const [hasMore, setHasMore] = useState<boolean>(true);
 	const [totalPages, setTotalPages] = useState<number>(1);
-	const [activeTimeFilter, setActiveTimeFilter] =
-		useState<TimeFilterType>("this_year");
 	const loaderRef = useRef<HTMLDivElement>(null);
-	const [selectedMonth, setSelectedMonth] = useState("");
-	const [selectedQuarter, setSelectedQuarter] = useState("");
-	const [selectedYear, setSelectedYear] = useState("");
-	const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
 
 	// Reset to page 1 and clear data when filters change
 	useEffect(() => {
@@ -182,37 +109,6 @@ export function AllSatisfactionDataTable() {
 		setHasMore(true);
 		setTotalPages(1);
 	}, [filters]);
-
-	const handleFilterChange = useCallback(
-		(newFilters: LocationFilterValuesWithDates) => {
-			console.log("Filter changed in all data table:", newFilters);
-			setFilters(newFilters);
-		},
-		[]
-	);
-
-	const handleTimeFilterClick = useCallback(
-		(period: TimeFilterType) => {
-			setActiveTimeFilter(period);
-			handleFilterChange({ ...filters, timeFilter: period });
-		},
-		[filters, handleFilterChange]
-	);
-
-	const handleFilterBarChange = useCallback(
-		(baseFilters: LocationFilterValues) => {
-			const newFilters: LocationFilterValuesWithDates = {
-				...baseFilters,
-				startDate: filters.startDate,
-				endDate: filters.endDate,
-				startYear: filters.startYear,
-				endYear: filters.endYear,
-				timeFilter: filters.timeFilter,
-			};
-			handleFilterChange(newFilters);
-		},
-		[filters, handleFilterChange]
-	);
 
 	const buildEndpoint = useCallback(
 		(page: number) => {
@@ -241,17 +137,49 @@ export function AllSatisfactionDataTable() {
 				params.append("facility", filters.facility);
 			}
 
-			// Add time filter
-			if (filters?.timeFilter) {
-				params.append("time_filter", filters.timeFilter);
-			}
+			// Add time period filters from ExtendedLocationFilterValues
+			const timePeriod = filters?.timePeriod || "cumulative";
+			const selectedYear = filters?.selectedYear;
+			const selectedMonth = filters?.selectedMonth;
+			const selectedQuarter = filters?.selectedQuarter;
+			const selectedDate = filters?.selectedDate;
 
-			// Add date range if provided
-			if (filters?.startDate) {
-				params.append("date_from", filters.startDate);
-			}
-			if (filters?.endDate) {
-				params.append("date_to", filters.endDate);
+			if (timePeriod === "today") {
+				params.append("time_filter", "today");
+			} else if (timePeriod === "cumulative") {
+				params.append("time_filter", "cumulative");
+			} else if (timePeriod === "by_year") {
+				params.append("time_filter", "by_year");
+				if (selectedYear)
+					params.append("year", String(selectedYear));
+			} else if (timePeriod === "by_month_year") {
+				params.append("time_filter", "by_month_year");
+				if (selectedYear)
+					params.append("year", String(selectedYear));
+				if (selectedMonth) params.append("month", selectedMonth);
+			} else if (timePeriod === "by_quarter_year") {
+				params.append("time_filter", "by_quarter_year");
+				if (selectedYear)
+					params.append("year", String(selectedYear));
+				if (selectedQuarter)
+					params.append("quarter", String(selectedQuarter));
+			} else if (timePeriod === "by_month") {
+				params.append("time_filter", "by_month");
+			} else if (timePeriod === "by_date") {
+				params.append("time_filter", "by_date");
+				if (selectedDate) {
+					params.append(
+						"date_from",
+						selectedDate.toISOString().split("T")[0]
+					);
+					params.append(
+						"date_to",
+						selectedDate.toISOString().split("T")[0]
+					);
+				}
+			} else {
+				// Default to cumulative if no other time period is selected
+				params.append("time_filter", "cumulative");
 			}
 
 			const queryString = params.toString();
@@ -284,7 +212,10 @@ export function AllSatisfactionDataTable() {
 						data.data.pagination.total_records
 					);
 				} else {
-					console.log("Fetched data, but pagination info is missing:", data);
+					console.log(
+						"Fetched data, but pagination info is missing:",
+						data
+					);
 				}
 			},
 			onError: (err) => {
@@ -340,126 +271,6 @@ export function AllSatisfactionDataTable() {
 
 	return (
 		<div className="space-y-4">
-			<FilterBar
-				restrictToUserRegion={true}
-				onFilterChange={handleFilterBarChange}
-			/>
-
-			{/* Time Filters UI */}
-			<div className="flex flex-wrap gap-2 items-center mb-4">
-				<Button
-					variant={activeTimeFilter === "today" ? "default" : "outline"}
-					onClick={() => {
-						setActiveTimeFilter("today");
-						setSelectedYear("");
-						setSelectedMonth("");
-						setSelectedQuarter("");
-						setSelectedDate(undefined);
-						handleTimeFilterClick("today");
-					}}
-					size="sm"
-				>
-					Today
-				</Button>
-				{/* Month Dropdown (enabled if year is selected) */}
-				<Select value={selectedMonth} onValueChange={(value) => {
-					setSelectedMonth(value);
-					setActiveTimeFilter("this_month");
-					setSelectedQuarter("");
-					setSelectedDate(undefined);
-					handleTimeFilterClick("this_month");
-				}} disabled={!selectedYear}>
-					<SelectTrigger className="w-[120px]">
-						<SelectValue placeholder="Month" />
-					</SelectTrigger>
-					<SelectContent>
-						{months.map((month) => (
-							<SelectItem key={month.value} value={month.value}>{month.label}</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-				{/* Quarter Dropdown (enabled if year is selected) */}
-				<Select value={selectedQuarter} onValueChange={(value) => {
-					setSelectedQuarter(value);
-					setActiveTimeFilter("current_quarter");
-					setSelectedMonth("");
-					setSelectedDate(undefined);
-					handleTimeFilterClick("current_quarter");
-				}} disabled={!selectedYear || !!selectedMonth}>
-					<SelectTrigger className="w-[120px]">
-						<SelectValue placeholder="Quarter" />
-					</SelectTrigger>
-					<SelectContent>
-						{quarters.map((q) => (
-							<SelectItem key={q.value} value={q.value}>{q.label}</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-				{/* Year Dropdown */}
-				<Select value={selectedYear} onValueChange={(value) => {
-					setSelectedYear(value);
-					setActiveTimeFilter("this_year");
-					setSelectedMonth("");
-					setSelectedQuarter("");
-					setSelectedDate(undefined);
-					handleTimeFilterClick("this_year");
-				}}>
-					<SelectTrigger className="w-[120px]">
-						<SelectValue placeholder="Year" />
-					</SelectTrigger>
-					<SelectContent>
-						{availableYears.map((year) => (
-							<SelectItem key={year} value={year.toString()}>{year}</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-				<Button
-					variant={activeTimeFilter === "cumulative" ? "default" : "outline"}
-					onClick={() => {
-						setActiveTimeFilter("cumulative");
-						setSelectedYear("");
-						setSelectedMonth("");
-						setSelectedQuarter("");
-						setSelectedDate(undefined);
-						handleTimeFilterClick("cumulative" as TimeFilterType);
-					}}
-					size="sm"
-				>
-					Cumulative
-				</Button>
-				{/* Calendar for date selection as a popover */}
-				<Popover>
-					<PopoverTrigger asChild>
-						<Button
-							variant="outline"
-							className={cn(
-								"w-[220px] justify-start text-left font-normal",
-								!selectedDate && "text-muted-foreground"
-							)}
-						>
-							{selectedDate ? selectedDate.toLocaleDateString() : "Pick a date"}
-						</Button>
-					</PopoverTrigger>
-					<PopoverContent className="w-auto p-0">
-						<Calendar
-							mode="single"
-							selected={selectedDate}
-							onSelect={(date) => {
-								setSelectedDate(date);
-								setActiveTimeFilter("by_date");
-								setSelectedYear("");
-								setSelectedMonth("");
-								setSelectedQuarter("");
-								handleTimeFilterClick("by_date" as TimeFilterType);
-							}}
-							className="rounded-md border"
-						/>
-					</PopoverContent>
-				</Popover>
-			</div>
-
-			{/* Display active filters */}
-		
 			<Card>
 				<CardHeader>
 					<CardTitle>Client Feedback Responses</CardTitle>
@@ -488,8 +299,8 @@ export function AllSatisfactionDataTable() {
 								Showing {data.data.data.length} of{" "}
 								{data.data.pagination.total_records}{" "}
 								records
-								{activeTimeFilter !== "this_year" &&
-									` for ${activeTimeFilter.replace(
+								{filters?.timePeriod !== "cumulative" &&
+									` for ${filters?.timePeriod?.replace(
 										/_/g,
 										" "
 									)}`}
