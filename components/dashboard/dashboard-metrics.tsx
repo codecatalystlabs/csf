@@ -1,6 +1,14 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import {
+	useState,
+	useRef,
+	useCallback,
+	useEffect,
+	useMemo,
+	forwardRef,
+	useImperativeHandle,
+} from "react";
 import useSWR from "swr";
 import {
 	Users,
@@ -21,6 +29,7 @@ import { authFetcher } from "@/lib/api-utils";
 import { DASHBOARD_ENDPOINTS, BASE_URL } from "@/lib/api-config";
 import { MetricsCard } from "./metrics-card";
 import { LocationFilterValues } from "@/components/filters/location-filter";
+import { ExtendedLocationFilterValues } from "@/components/dashboard/filter-bar";
 import { SatisfactionTrendChart } from "./satisfaction-trend-chart";
 import { SatisfactionGaugeChart } from "./satisfaction-gauge-chart";
 import { SatisfactionPieChart } from "./satisfaction-pie-chart";
@@ -38,127 +47,31 @@ import {
 } from "@/components/ui/select";
 import { Loader } from "@/components/ui/loader";
 import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import {
+	Popover,
+	PopoverTrigger,
+	PopoverContent,
+} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
-// Function to generate a list of years (e.g., from 2020 to current year)
-const generateYears = () => {
-	const currentYear = new Date().getFullYear();
-	const years = [];
-	for (let year = 2020; year <= currentYear; year++) {
-		years.push(year);
-	}
-	return years;
-};
-
-type TimePeriod =
-	| "today"
-	| "this_month"
-	| "last_month"
-	| "cumulative"
-	| "custom_year_range"
-	| "last_year"
-	| "this_year"
-	| "current_quarter"
-	| "previous_quarter"
-	| "by_month_year"
-	| "by_quarter_year"
-	| "by_date"
-	| "by_year"
-	| "by_month"
-	| "by_date";
-
 interface DashboardMetricsProps {
-	filters?: LocationFilterValues;
-	onYearRangeChange?: (startYear?: number, endYear?: number) => void;
-	initialStartYear?: number;
-	initialEndYear?: number;
+	filters?: ExtendedLocationFilterValues;
+	onGeneratingReportChange?: (isGenerating: boolean) => void;
 }
 
-export function DashboardMetrics({
-	filters,
-	onYearRangeChange,
-	initialStartYear,
-	initialEndYear,
-}: DashboardMetricsProps) {
+export interface DashboardMetricsRef {
+	refreshDashboard: () => void;
+	generateReport: () => void;
+}
+
+export const DashboardMetrics = forwardRef<
+	DashboardMetricsRef,
+	DashboardMetricsProps
+>(({ filters, onGeneratingReportChange }, ref) => {
 	const { toast } = useToast();
 	const { user } = useAuth();
-	const [timePeriod, setTimePeriod] = useState<TimePeriod>("cumulative");
-	const [startYear, setStartYear] = useState<number | undefined>(
-		initialStartYear
-	);
-	const [endYear, setEndYear] = useState<number | undefined>(initialEndYear);
 	const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 	const dashboardRef = useRef<HTMLDivElement>(null);
-	const availableYears = generateYears();
-	const [selectedYear, setSelectedYear] = useState<string>("");
-	const [selectedMonth, setSelectedMonth] = useState<string>("");
-	const [selectedQuarter, setSelectedQuarter] = useState<string>("");
-	const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
-
-	const months = [
-		{ value: "01", label: "January" },
-		{ value: "02", label: "February" },
-		{ value: "03", label: "March" },
-		{ value: "04", label: "April" },
-		{ value: "05", label: "May" },
-		{ value: "06", label: "June" },
-		{ value: "07", label: "July" },
-		{ value: "08", label: "August" },
-		{ value: "09", label: "September" },
-		{ value: "10", label: "October" },
-		{ value: "11", label: "November" },
-		{ value: "12", label: "December" },
-	];
-	const quarters = [
-		{ value: "Q1", label: "Q1 (Jan-Mar)" },
-		{ value: "Q2", label: "Q2 (Apr-Jun)" },
-		{ value: "Q3", label: "Q3 (Jul-Sep)" },
-		{ value: "Q4", label: "Q4 (Oct-Dec)" },
-	];
-
-	const handleStartYearChange = useCallback(
-		(value: string) => {
-			const year = parseInt(value);
-			setStartYear(year);
-			if (endYear && year > endYear) {
-				setEndYear(year);
-			}
-			setTimePeriod("custom_year_range");
-			if (onYearRangeChange)
-				onYearRangeChange(
-					year,
-					endYear && year > endYear ? year : endYear
-				);
-		},
-		[endYear, onYearRangeChange]
-	);
-
-	const handleEndYearChange = useCallback(
-		(value: string) => {
-			const year = parseInt(value);
-			setEndYear(year);
-			if (startYear && year < startYear) {
-				setStartYear(year);
-			}
-			setTimePeriod("custom_year_range");
-			if (onYearRangeChange)
-				onYearRangeChange(
-					startYear && year < startYear ? year : startYear,
-					year
-				);
-		},
-		[startYear, onYearRangeChange]
-	);
-
-	// Update internal year state if initial props change
-	useEffect(() => {
-		setStartYear(initialStartYear);
-	}, [initialStartYear]);
-
-	useEffect(() => {
-		setEndYear(initialEndYear);
-	}, [initialEndYear]);
 
 	const dashboardEndpoint = useMemo(() => {
 		const baseUrl = "https://csf.health.go.ug/api/dashboard_data.php";
@@ -167,6 +80,12 @@ export function DashboardMetrics({
 		if (filters?.region) params.append("region", filters.region);
 		if (filters?.district) params.append("district", filters.district);
 		if (filters?.facility) params.append("facility", filters.facility);
+
+		const timePeriod = filters?.timePeriod || "cumulative";
+		const selectedYear = filters?.selectedYear;
+		const selectedMonth = filters?.selectedMonth;
+		const selectedQuarter = filters?.selectedQuarter;
+		const selectedDate = filters?.selectedDate;
 
 		if (timePeriod === "today") {
 			params.append("time_filter", "today");
@@ -182,14 +101,21 @@ export function DashboardMetrics({
 		} else if (timePeriod === "by_quarter_year") {
 			params.append("time_filter", "by_quarter_year");
 			if (selectedYear) params.append("year", String(selectedYear));
-			if (selectedQuarter) params.append("quarter", String(selectedQuarter));
+			if (selectedQuarter)
+				params.append("quarter", String(selectedQuarter));
 		} else if (timePeriod === "by_month") {
 			params.append("time_filter", "by_month");
 		} else if (timePeriod === "by_date") {
 			params.append("time_filter", "by_date");
 			if (selectedDate) {
-				params.append("date_from", selectedDate.toISOString().split('T')[0]);
-				params.append("date_to", selectedDate.toISOString().split('T')[0]);
+				params.append(
+					"date_from",
+					selectedDate.toISOString().split("T")[0]
+				);
+				params.append(
+					"date_to",
+					selectedDate.toISOString().split("T")[0]
+				);
 			}
 		} else {
 			// Default to cumulative if no other time period is selected
@@ -197,12 +123,19 @@ export function DashboardMetrics({
 		}
 
 		const queryString = params.toString();
-		const fullEndpoint = queryString ? `${baseUrl}?${queryString}` : baseUrl;
-		console.log('Constructed Endpoint:', fullEndpoint);
-		console.log('Selected Values:', { selectedYear, selectedMonth, selectedQuarter, selectedDate });
-		console.log('Filters:', filters);
+		const fullEndpoint = queryString
+			? `${baseUrl}?${queryString}`
+			: baseUrl;
+		console.log("Constructed Endpoint:", fullEndpoint);
+		console.log("Selected Values:", {
+			selectedYear,
+			selectedMonth,
+			selectedQuarter,
+			selectedDate,
+		});
+		console.log("Filters:", filters);
 		return fullEndpoint;
-	}, [filters, timePeriod, selectedYear, selectedMonth, selectedQuarter, selectedDate]);
+	}, [filters]);
 
 	const {
 		data,
@@ -212,30 +145,20 @@ export function DashboardMetrics({
 	} = useSWR(dashboardEndpoint, authFetcher, {
 		revalidateOnFocus: false,
 		onSuccess: (data) => {
-			console.log('Dashboard Data:', data);
+			console.log("Dashboard Data:", data);
 		},
 		onError: (error) => {
-			console.error('Error fetching dashboard data:', error);
-		}
+			console.error("Error fetching dashboard data:", error);
+		},
 	});
 
-	const handlePeriodChange = (period: TimePeriod) => {
-		setTimePeriod(period);
-		// If a predefined period is selected, clear custom years from API call
-		if (period !== "custom_year_range") {
-			// Optionally clear visual selection of years or let them persist for next custom selection
-			// setStartYear(undefined)
-			// setEndYear(undefined)
-			if (onYearRangeChange) onYearRangeChange(undefined, undefined); // Clear in parent if needed
-		}
-	};
+	const timePeriod = filters?.timePeriod || "cumulative";
+	const selectedYear = filters?.selectedYear;
+	const selectedMonth = filters?.selectedMonth;
+	const selectedQuarter = filters?.selectedQuarter;
+	const selectedDate = filters?.selectedDate;
 
-	const periodData =
-		data?.[
-			timePeriod === "custom_year_range" && (startYear || endYear)
-				? "cumulative"
-				: timePeriod
-		] || {};
+	const periodData = data || {};
 
 	console.log(periodData);
 
@@ -245,11 +168,15 @@ export function DashboardMetrics({
 		return "bg-red-500";
 	};
 
-	const satisfactionPercentage = periodData.overall_satisfaction ?? 0;
+	const satisfactionPercentage =
+		periodData?.stats?.overall_satisfaction ?? 0;
 	const satisfactionColor = getSatisfactionColor(satisfactionPercentage);
 
-	const generateReport = async () => {
+	const generateReport = useCallback(async () => {
 		setIsGeneratingReport(true);
+		if (onGeneratingReportChange) {
+			onGeneratingReportChange(true);
+		}
 		const reportTimestamp = new Date().toISOString().split("T")[0];
 		try {
 			toast({
@@ -268,13 +195,6 @@ export function DashboardMetrics({
 				"_",
 				" "
 			)} - ${reportDate}`;
-			if (timePeriod === "custom_year_range" && startYear && endYear) {
-				reportTitle = `Dashboard Report - ${startYear} to ${endYear} - ${reportDate}`;
-			} else if (timePeriod === "custom_year_range" && startYear) {
-				reportTitle = `Dashboard Report - From ${startYear} - ${reportDate}`;
-			} else if (timePeriod === "custom_year_range" && endYear) {
-				reportTitle = `Dashboard Report - Up to ${endYear} - ${reportDate}`;
-			}
 
 			let filterText = "";
 
@@ -329,11 +249,7 @@ export function DashboardMetrics({
 			);
 
 			pdf.save(
-				`dashboard-report-${
-					timePeriod === "custom_year_range"
-						? `${startYear || "any"}-${endYear || "any"}`
-						: timePeriod
-				}-${reportTimestamp}.pdf`
+				`dashboard-report-${timePeriod}-${reportTimestamp}.pdf`
 			);
 
 			toast({
@@ -364,14 +280,7 @@ export function DashboardMetrics({
 				if (user?.region) params.append("role", "region");
 				else params.append("role", "national");
 
-				if (timePeriod === "custom_year_range") {
-					if (startYear)
-						params.append("start_year", startYear.toString());
-					if (endYear)
-						params.append("end_year", endYear.toString());
-				} else {
-					params.append("period", timePeriod);
-				}
+				params.append("period", timePeriod);
 
 				const reportEndpoint = `${BASE_URL}/reports/generate?${params.toString()}`;
 
@@ -402,11 +311,7 @@ export function DashboardMetrics({
 				const url = window.URL.createObjectURL(blob);
 				const a = document.createElement("a");
 				a.href = url;
-				a.download = `dashboard-report-${
-					timePeriod === "custom_year_range"
-						? `${startYear || "any"}-${endYear || "any"}`
-						: timePeriod
-				}-${reportTimestamp}.pdf`;
+				a.download = `dashboard-report-${timePeriod}-${reportTimestamp}.pdf`;
 				document.body.appendChild(a);
 				a.click();
 				a.remove();
@@ -433,150 +338,24 @@ export function DashboardMetrics({
 			}
 		} finally {
 			setIsGeneratingReport(false);
+			if (onGeneratingReportChange) {
+				onGeneratingReportChange(false);
+			}
 		}
-	};
+	}, [filters, timePeriod, toast, user, onGeneratingReportChange]);
+
+	// Expose functions through ref
+	useImperativeHandle(
+		ref,
+		() => ({
+			refreshDashboard,
+			generateReport,
+		}),
+		[refreshDashboard, generateReport]
+	);
 
 	return (
 		<div className="space-y-4">
-			<div className="flex flex-wrap gap-2 items-center">
-				{/* Today and Cumulative buttons */}
-				<Button
-					variant={timePeriod === "today" ? "default" : "outline"}
-					onClick={() => {
-						setTimePeriod("today");
-						setSelectedYear("");
-						setSelectedMonth("");
-						setSelectedQuarter("");
-						setSelectedDate(undefined);
-					}}
-					size="sm"
-				>
-					Today
-				</Button>
-
-				{/* Month Dropdown (enabled if year is selected) */}
-				<Select value={selectedMonth} onValueChange={(value) => {
-					setSelectedMonth(value);
-					setTimePeriod("by_month_year");
-					setSelectedQuarter("");
-					setSelectedDate(undefined);
-				}} disabled={!selectedYear}>
-					<SelectTrigger className="w-[120px]">
-						<SelectValue placeholder="Month" />
-					</SelectTrigger>
-					<SelectContent>
-						{months.map((month) => (
-							<SelectItem key={month.value} value={month.value}>{month.label}</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-
-				{/* Quarter Dropdown (enabled if year is selected) */}
-				<Select value={selectedQuarter} onValueChange={(value) => {
-					setSelectedQuarter(value);
-					setTimePeriod("by_quarter_year");
-					setSelectedMonth("");
-					setSelectedDate(undefined);
-				}} disabled={!selectedYear || !!selectedMonth}>
-					<SelectTrigger className="w-[120px]">
-						<SelectValue placeholder="Quarter" />
-					</SelectTrigger>
-					<SelectContent>
-						{quarters.map((q) => (
-							<SelectItem key={q.value} value={q.value}>{q.label}</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-				{/* Year Dropdown */}
-				<Select value={selectedYear} onValueChange={(value) => {
-					setSelectedYear(value);
-					setTimePeriod("by_year");
-					setSelectedMonth("");
-					setSelectedQuarter("");
-					setSelectedDate(undefined);
-				}}>
-					<SelectTrigger className="w-[120px]">
-						<SelectValue placeholder="Year" />
-					</SelectTrigger>
-					<SelectContent>
-						{availableYears.map((year) => (
-							<SelectItem key={year} value={year.toString()}>{year}</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-				<Button
-					variant={timePeriod === "cumulative" ? "default" : "outline"}
-					onClick={() => {
-						setTimePeriod("cumulative");
-						setSelectedYear("");
-						setSelectedMonth("");
-						setSelectedQuarter("");
-						setSelectedDate(undefined);
-					}}
-					size="sm"
-				>
-					Cumulative
-				</Button>
-
-				{/* Calendar for date selection as a popover */}
-				<Popover>
-					<PopoverTrigger asChild>
-						<Button
-							variant="outline"
-							className={cn(
-								"w-[220px] justify-start text-left font-normal",
-								!selectedDate && "text-muted-foreground"
-							)}
-						>
-							{selectedDate ? selectedDate.toLocaleDateString() : "Pick a date"}
-						</Button>
-					</PopoverTrigger>
-					<PopoverContent className="w-auto p-0">
-						<Calendar
-							mode="single"
-							selected={selectedDate}
-							onSelect={(date) => {
-								setSelectedDate(date);
-								setTimePeriod("by_date");
-								setSelectedYear("");
-								setSelectedMonth("");
-								setSelectedQuarter("");
-							}}
-							className="rounded-md border"
-						/>
-					</PopoverContent>
-				</Popover>
-
-				<div className="ml-auto flex gap-2">
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={() => refreshDashboard()}
-					>
-						Refresh
-					</Button>
-					<Button
-						variant="default"
-						size="sm"
-						onClick={generateReport}
-						disabled={isGeneratingReport || isLoading}
-						className="gap-2"
-					>
-						{isGeneratingReport ? (
-							<>
-								<div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-opacity-50 border-t-transparent"></div>
-								Generating...
-							</>
-						) : (
-							<>
-								<FileText className="h-4 w-4" />
-								Generate Report
-							</>
-						)}
-					</Button>
-				</div>
-			</div>
-
 			{/* Dashboard content */}
 			{isLoading && !data ? (
 				<div className="h-96 flex items-center justify-center">
@@ -599,14 +378,20 @@ export function DashboardMetrics({
 						<div className="lg:col-span-3 flex flex-col gap-1.5">
 							<MetricsCard
 								title="Total Clients"
-								value={periodData.total_clients ?? 0}
+								value={
+									periodData?.stats?.total_clients ??
+									0
+								}
 								icon={Users}
 								isLoading={isLoading}
 								className="h-24 py-1"
 							/>
 							<MetricsCard
 								title="Satisfied Clients"
-								value={periodData.satisfied_clients ?? 0}
+								value={
+									periodData?.stats
+										?.satisfied_clients ?? 0
+								}
 								icon={Smile}
 								description={`${satisfactionPercentage}% satisfaction rate`}
 								isLoading={isLoading}
@@ -614,29 +399,40 @@ export function DashboardMetrics({
 							/>
 							<MetricsCard
 								title="Male Entries"
-								value={periodData.male_entries ?? 0}
+								value={
+									periodData?.stats?.male_entries ??
+									0
+								}
 								icon={UserCircle}
 								isLoading={isLoading}
 								className="h-24 py-1"
 							/>
 							<MetricsCard
 								title="Female Entries"
-								value={periodData.female_entries ?? 0}
+								value={
+									periodData?.stats
+										?.female_entries ?? 0
+								}
 								icon={UserRound}
 								isLoading={isLoading}
 								className="h-24 py-1"
 							/>
 							<MetricsCard
 								title="Facilities"
-								value={periodData.total_facilities ?? 0}
+								value={
+									periodData?.stats
+										?.total_facilities ?? 0
+								}
 								icon={AlertTriangle}
 								trend={
-									periodData.total_facilities > 0
+									(periodData?.stats
+										?.total_facilities ?? 0) > 0
 										? "up"
 										: "neutral"
 								}
 								trendValue={
-									periodData.total_facilities > 0
+									(periodData?.stats
+										?.total_facilities ?? 0) > 0
 										? "Requires attention"
 										: "No issues reported"
 								}
@@ -646,19 +442,52 @@ export function DashboardMetrics({
 						</div>
 						<div className="lg:col-span-3 flex items-center justify-center">
 							<SatisfactionGaugeChart
-								filters={{
-									...filters,
-									timeFilter: timePeriod,
-									...(timePeriod === "by_quarter_year" && selectedYear && selectedQuarter
-										? { year: Number(selectedYear), quarter: Number(selectedQuarter) }
-										: {}),
-									...(timePeriod === "by_date" && selectedDate
-										? {
-											date_from: selectedDate.toISOString().split('T')[0],
-											date_to: selectedDate.toISOString().split('T')[0],
-										}
-										: {}),
-								}}
+								filters={
+									{
+										region: filters?.region,
+										district: filters?.district,
+										facility: filters?.facility,
+										timeFilter: timePeriod,
+										...(timePeriod ===
+											"by_quarter_year" &&
+										selectedYear &&
+										selectedQuarter
+											? {
+													year: Number(
+														selectedYear
+													),
+													quarter: Number(
+														selectedQuarter.replace(
+															"Q",
+															""
+														)
+													),
+											  }
+											: {}),
+										...(timePeriod ===
+											"by_date" && selectedDate
+											? {
+													date_from:
+														selectedDate
+															.toISOString()
+															.split(
+																"T"
+															)[0],
+													date_to: selectedDate
+														.toISOString()
+														.split(
+															"T"
+														)[0],
+											  }
+											: {}),
+									} as LocationFilterValues & {
+										timeFilter?: string;
+										year?: number;
+										quarter?: number;
+										date_from?: string;
+										date_to?: string;
+									}
+								}
 							/>
 						</div>
 						<div className="lg:col-span-6">
@@ -669,4 +498,6 @@ export function DashboardMetrics({
 			)}
 		</div>
 	);
-}
+});
+
+DashboardMetrics.displayName = "DashboardMetrics";

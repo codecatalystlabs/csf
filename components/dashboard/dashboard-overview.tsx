@@ -1,27 +1,42 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FilterBar } from "@/components/dashboard/filter-bar";
+import {
+	FilterBar,
+	ExtendedLocationFilterValues,
+} from "@/components/dashboard/filter-bar";
 import { LocationFilterValues } from "@/components/filters/location-filter";
 import { useAuth } from "@/app/context/auth-context";
-import { DashboardMetrics } from "./dashboard-metrics";
+import { DashboardMetrics, DashboardMetricsRef } from "./dashboard-metrics";
 import { IndicatorsProgress } from "./indicators-progress";
 import { ServicePointProgress } from "./service-point-progress";
 import Image from "next/image";
 
-
-
 export function DashboardOverview() {
 	const { user } = useAuth();
-	const [filters, setFilters] = useState<LocationFilterValues>({});
+	const [filters, setFilters] = useState<ExtendedLocationFilterValues>({});
+	const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+	const dashboardMetricsRef = useRef<DashboardMetricsRef>(null);
 
 	const handleFilterChange = useCallback(
-		(newFilters: LocationFilterValues) => {
+		(newFilters: ExtendedLocationFilterValues) => {
 			setFilters(newFilters);
 		},
 		[]
 	);
+
+	const handleRefresh = useCallback(() => {
+		if (dashboardMetricsRef.current) {
+			dashboardMetricsRef.current.refreshDashboard();
+		}
+	}, []);
+
+	const handleGenerateReport = useCallback(() => {
+		if (dashboardMetricsRef.current) {
+			dashboardMetricsRef.current.generateReport();
+		}
+	}, []);
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -42,10 +57,17 @@ export function DashboardOverview() {
 			<FilterBar
 				restrictToUserRegion={true}
 				onFilterChange={handleFilterChange}
+				onRefresh={handleRefresh}
+				onGenerateReport={handleGenerateReport}
+				isGeneratingReport={isGeneratingReport}
 			/>
 
 			{/* Dashboard metrics */}
-			<DashboardMetrics filters={filters} />
+			<DashboardMetrics
+				ref={dashboardMetricsRef}
+				filters={filters}
+				onGeneratingReportChange={setIsGeneratingReport}
+			/>
 
 			{/* Indicators and Service Point Progress side by side */}
 			<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
