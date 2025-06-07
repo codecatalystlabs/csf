@@ -16,7 +16,11 @@ import { Loader2 } from "lucide-react";
 import { BASE_URL, LOCATION_ENDPOINTS } from "@/lib/api-config";
 import { useAuth } from "@/app/context/auth-context";
 import { cn } from "@/lib/utils";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 
 export interface LocationFilterValues {
@@ -59,7 +63,9 @@ export function LocationFilter({
 	const [selectedMonth, setSelectedMonth] = useState("");
 	const [selectedQuarter, setSelectedQuarter] = useState("");
 	const [selectedYear, setSelectedYear] = useState("");
-	const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+	const [selectedDate, setSelectedDate] = useState<Date | undefined>(
+		undefined
+	);
 	const [timeframe, setTimeframe] = useState<string>("cumulative");
 
 	// Use refs to track previous values to prevent unnecessary updates
@@ -184,10 +190,10 @@ export function LocationFilter({
 	];
 
 	const quarters = [
-		{ value: "Q1", label: "Q1 (Jan-Mar)" },
-		{ value: "Q2", label: "Q2 (Apr-Jun)" },
-		{ value: "Q3", label: "Q3 (Jul-Sep)" },
-		{ value: "Q4", label: "Q4 (Oct-Dec)" },
+		{ value: "1", label: "Q1 (Jan-Mar)" },
+		{ value: "2", label: "Q2 (Apr-Jun)" },
+		{ value: "3", label: "Q3 (Jul-Sep)" },
+		{ value: "4", label: "Q4 (Oct-Dec)" },
 	];
 
 	const generateYears = () => {
@@ -237,7 +243,17 @@ export function LocationFilter({
 			prevFiltersRef.current = newFilters;
 			onFilterChange(newFilters);
 		}
-	}, [selectedRegion, selectedDistrict, selectedFacility, timeframe, selectedYear, selectedMonth, selectedQuarter, selectedDate, onFilterChange]);
+	}, [
+		selectedRegion,
+		selectedDistrict,
+		selectedFacility,
+		timeframe,
+		selectedYear,
+		selectedMonth,
+		selectedQuarter,
+		selectedDate,
+		onFilterChange,
+	]);
 
 	// Memoize the clear filters handler
 	const handleClearFilters = useCallback(() => {
@@ -273,15 +289,17 @@ export function LocationFilter({
 					<SelectItem value="all_regions">
 						All Regions
 					</SelectItem>
-					{regions.map((region: { id: string; name: string }) => (
-						<SelectItem
-							key={region.id}
-							value={region.id}
-							className="hover:bg-yellow-50 focus:bg-yellow-50 cursor-pointer"
-						>
-							{region.name.replace(/_/g, " ")}
-						</SelectItem>
-					))}
+					{regions.map(
+						(region: { id: string; name: string }) => (
+							<SelectItem
+								key={region.id}
+								value={region.id}
+								className="hover:bg-yellow-50 focus:bg-yellow-50 cursor-pointer"
+							>
+								{region.name.replace(/_/g, " ")}
+							</SelectItem>
+						)
+					)}
 				</SelectContent>
 			</Select>
 
@@ -309,15 +327,17 @@ export function LocationFilter({
 					<SelectItem value="all_districts">
 						All Districts
 					</SelectItem>
-					{districts.map((district: { id: string; name: string }) => (
-						<SelectItem
-							key={district.id}
-							value={district.id}
-							className="hover:bg-yellow-50 focus:bg-yellow-50 cursor-pointer"
-						>
-							{district.name.replace(/_/g, " ")}
-						</SelectItem>
-					))}
+					{districts.map(
+						(district: { id: string; name: string }) => (
+							<SelectItem
+								key={district.id}
+								value={district.id}
+								className="hover:bg-yellow-50 focus:bg-yellow-50 cursor-pointer"
+							>
+								{district.name.replace(/_/g, " ")}
+							</SelectItem>
+						)
+					)}
 				</SelectContent>
 			</Select>
 
@@ -346,15 +366,17 @@ export function LocationFilter({
 					<SelectItem value="all_facilities">
 						All Facilities
 					</SelectItem>
-					{facilities.map((facility: { id: string; name: string }) => (
-						<SelectItem
-							key={facility.id}
-							value={facility.id}
-							className="hover:bg-yellow-50 focus:bg-yellow-50 cursor-pointer"
-						>
-							{facility.name.replace(/_/g, " ")}
-						</SelectItem>
-					))}
+					{facilities.map(
+						(facility: { id: string; name: string }) => (
+							<SelectItem
+								key={facility.id}
+								value={facility.id}
+								className="hover:bg-yellow-50 focus:bg-yellow-50 cursor-pointer"
+							>
+								{facility.name.replace(/_/g, " ")}
+							</SelectItem>
+						)
+					)}
 				</SelectContent>
 			</Select>
 
@@ -372,54 +394,82 @@ export function LocationFilter({
 				>
 					Today
 				</Button>
-				<Select value={selectedMonth} onValueChange={(value) => {
-					setSelectedMonth(value);
-					setTimeframe("by_month_year");
-					setSelectedQuarter("");
-					setSelectedDate(undefined);
-				}} disabled={!selectedYear}>
+				<Select
+					value={selectedMonth}
+					onValueChange={(value) => {
+						setSelectedMonth(value);
+						setTimeframe("by_month_year");
+						setSelectedQuarter("");
+						setSelectedDate(undefined);
+					}}
+					disabled={!selectedYear}
+				>
 					<SelectTrigger className="w-[120px]">
 						<SelectValue placeholder="Month" />
 					</SelectTrigger>
 					<SelectContent>
 						{months.map((month) => (
-							<SelectItem key={month.value} value={month.value}>{month.label}</SelectItem>
+							<SelectItem
+								key={month.value}
+								value={month.value}
+							>
+								{month.label}
+							</SelectItem>
 						))}
 					</SelectContent>
 				</Select>
-				<Select value={selectedQuarter} onValueChange={(value) => {
-					setSelectedQuarter(value);
-					setTimeframe("by_quarter_year");
-					setSelectedMonth("");
-					setSelectedDate(undefined);
-				}} disabled={!selectedYear || !!selectedMonth}>
+				<Select
+					value={selectedQuarter}
+					onValueChange={(value) => {
+						setSelectedQuarter(value);
+						setTimeframe("by_quarter_year");
+						setSelectedMonth("");
+						setSelectedDate(undefined);
+					}}
+					disabled={!selectedYear || !!selectedMonth}
+				>
 					<SelectTrigger className="w-[120px]">
 						<SelectValue placeholder="Quarter" />
 					</SelectTrigger>
 					<SelectContent>
 						{quarters.map((q) => (
-							<SelectItem key={q.value} value={q.value}>{q.label}</SelectItem>
+							<SelectItem
+								key={q.value}
+								value={q.value}
+							>
+								{q.label}
+							</SelectItem>
 						))}
 					</SelectContent>
 				</Select>
-				<Select value={selectedYear} onValueChange={(value) => {
-					setSelectedYear(value);
-					setTimeframe("by_year");
-					setSelectedMonth("");
-					setSelectedQuarter("");
-					setSelectedDate(undefined);
-				}}>
+				<Select
+					value={selectedYear}
+					onValueChange={(value) => {
+						setSelectedYear(value);
+						setTimeframe("by_year");
+						setSelectedMonth("");
+						setSelectedQuarter("");
+						setSelectedDate(undefined);
+					}}
+				>
 					<SelectTrigger className="w-[120px]">
 						<SelectValue placeholder="Year" />
 					</SelectTrigger>
 					<SelectContent>
 						{availableYears.map((year) => (
-							<SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+							<SelectItem
+								key={year}
+								value={year.toString()}
+							>
+								{year}
+							</SelectItem>
 						))}
 					</SelectContent>
 				</Select>
 				<Button
-					variant={timeframe === "cumulative" ? "default" : "outline"}
+					variant={
+						timeframe === "cumulative" ? "default" : "outline"
+					}
 					onClick={() => {
 						setTimeframe("cumulative");
 						setSelectedYear("");
@@ -440,7 +490,9 @@ export function LocationFilter({
 								!selectedDate && "text-muted-foreground"
 							)}
 						>
-							{selectedDate ? selectedDate.toLocaleDateString() : "Pick a date"}
+							{selectedDate
+								? selectedDate.toLocaleDateString()
+								: "Pick a date"}
 						</Button>
 					</PopoverTrigger>
 					<PopoverContent className="w-auto p-0">

@@ -11,8 +11,18 @@ import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/app/context/auth-context";
 import { LocationFilterValues } from "@/components/filters/location-filter";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 
@@ -60,10 +70,10 @@ const months = [
 	{ value: "12", label: "December" },
 ];
 const quarters = [
-	{ value: "Q1", label: "Q1 (Jan-Mar)" },
-	{ value: "Q2", label: "Q2 (Apr-Jun)" },
-	{ value: "Q3", label: "Q3 (Jul-Sep)" },
-	{ value: "Q4", label: "Q4 (Oct-Dec)" },
+	{ value: "1", label: "Q1 (Jan-Mar)" },
+	{ value: "2", label: "Q2 (Apr-Jun)" },
+	{ value: "3", label: "Q3 (Jul-Sep)" },
+	{ value: "4", label: "Q4 (Oct-Dec)" },
 ];
 const generateYears = () => {
 	const currentYear = new Date().getFullYear();
@@ -77,12 +87,21 @@ const availableYears = generateYears();
 
 export function IndicatorsProgress({ filters }: IndicatorsProgressProps) {
 	const [timeframe, setTimeframe] = useState<
-		"today" | "this_month" | "cumulative" | "by_quarter_year" | "by_date" | "by_year" | "by_month" | "by_month_year"
+		| "today"
+		| "this_month"
+		| "cumulative"
+		| "by_quarter_year"
+		| "by_date"
+		| "by_year"
+		| "by_month"
+		| "by_month_year"
 	>("today");
 	const [selectedMonth, setSelectedMonth] = useState("");
 	const [selectedQuarter, setSelectedQuarter] = useState("");
 	const [selectedYear, setSelectedYear] = useState("");
-	const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+	const [selectedDate, setSelectedDate] = useState<Date | undefined>(
+		undefined
+	);
 
 	// Get user from auth context
 	const { user } = useAuth();
@@ -172,8 +191,6 @@ export function IndicatorsProgress({ filters }: IndicatorsProgressProps) {
 				<BarChart3 className="h-5 w-5 text-muted-foreground" />
 			</CardHeader>
 
-			
-
 			<CardContent className="space-y-4">
 				<Tabs
 					defaultValue="today"
@@ -194,9 +211,7 @@ export function IndicatorsProgress({ filters }: IndicatorsProgressProps) {
 				>
 					<TabsList className="grid w-full grid-cols-3">
 						<TabsTrigger value="today">Today</TabsTrigger>
-						<TabsTrigger value="by_year">
-							By year
-						</TabsTrigger>
+						<TabsTrigger value="by_year">By year</TabsTrigger>
 						<TabsTrigger value="cumulative">
 							Cumulative
 						</TabsTrigger>

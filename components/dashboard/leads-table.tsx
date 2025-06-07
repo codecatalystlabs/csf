@@ -47,7 +47,11 @@ import { BASE_URL } from "@/lib/api-config";
 import { useAuth } from "@/app/context/auth-context";
 import { LocationFilterValues } from "@/components/filters/location-filter";
 import { FilterBar } from "@/components/dashboard/filter-bar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 
@@ -184,7 +188,7 @@ function FacilityLevelBarChart({ filters, timeFilter }: ChartProps) {
 						value: "Satisfaction Rate (%)",
 						angle: -90,
 						position: "insideLeft",
-						style: { textAnchor: "middle" }
+						style: { textAnchor: "middle" },
 					}}
 				/>
 				<Tooltip
@@ -279,17 +283,37 @@ function ServiceUnitSatisfactionTable({ filters, timeFilter }: ChartProps) {
 			<table className="min-w-full border-collapse border border-gray-300">
 				<thead>
 					<tr>
-						<th className="border border-gray-300 px-4 py-2 bg-gray-100 text-left text-sm font-medium">Service Unit</th>
-						<th className="border border-gray-300 px-4 py-2 bg-gray-100 text-center text-sm font-medium">Satisfaction Rate</th>
+						<th className="border border-gray-300 px-4 py-2 bg-gray-100 text-left text-sm font-medium">
+							Service Unit
+						</th>
+						<th className="border border-gray-300 px-4 py-2 bg-gray-100 text-center text-sm font-medium">
+							Satisfaction Rate
+						</th>
 					</tr>
 				</thead>
 				<tbody>
-					{tableData.map((row: { name: string; value: number }, idx: number) => (
-						<tr key={row.name} className="hover:bg-gray-50">
-							<td className="border border-gray-300 px-4 py-2 font-medium">{row.name}</td>
-							<td className={`border border-gray-300 px-4 py-2 text-center font-semibold ${getSatisfactionColor(row.value)}`}>{row.value.toFixed(1)}%</td>
-						</tr>
-					))}
+					{tableData.map(
+						(
+							row: { name: string; value: number },
+							idx: number
+						) => (
+							<tr
+								key={row.name}
+								className="hover:bg-gray-50"
+							>
+								<td className="border border-gray-300 px-4 py-2 font-medium">
+									{row.name}
+								</td>
+								<td
+									className={`border border-gray-300 px-4 py-2 text-center font-semibold ${getSatisfactionColor(
+										row.value
+									)}`}
+								>
+									{row.value.toFixed(1)}%
+								</td>
+							</tr>
+						)
+					)}
 				</tbody>
 			</table>
 		</div>
@@ -325,10 +349,10 @@ const months = [
 	{ value: "12", label: "December" },
 ];
 const quarters = [
-	{ value: "Q1", label: "Q1 (Jan-Mar)" },
-	{ value: "Q2", label: "Q2 (Apr-Jun)" },
-	{ value: "Q3", label: "Q3 (Jul-Sep)" },
-	{ value: "Q4", label: "Q4 (Oct-Dec)" },
+	{ value: "1", label: "Q1 (Jan-Mar)" },
+	{ value: "2", label: "Q2 (Apr-Jun)" },
+	{ value: "3", label: "Q3 (Jul-Sep)" },
+	{ value: "4", label: "Q4 (Oct-Dec)" },
 ];
 const generateYears = () => {
 	const currentYear = new Date().getFullYear();
@@ -347,7 +371,9 @@ export function LeadsTable() {
 	const [selectedMonth, setSelectedMonth] = useState("");
 	const [selectedQuarter, setSelectedQuarter] = useState("");
 	const [selectedYear, setSelectedYear] = useState("");
-	const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+	const [selectedDate, setSelectedDate] = useState<Date | undefined>(
+		undefined
+	);
 
 	const handleFilterChange = useCallback(
 		(newFilters: LocationFilterValues) => {
@@ -363,7 +389,9 @@ export function LeadsTable() {
 
 	const toggleSelectLead = (id: string) => {
 		if (selectedLeads.includes(id)) {
-			setSelectedLeads(selectedLeads.filter((leadId) => leadId !== id));
+			setSelectedLeads(
+				selectedLeads.filter((leadId) => leadId !== id)
+			);
 		} else {
 			setSelectedLeads([...selectedLeads, id]);
 		}
@@ -392,7 +420,9 @@ export function LeadsTable() {
 			{/* Time Filters UI */}
 			<div className="flex flex-wrap gap-2 items-center mb-4">
 				<Button
-					variant={timePeriod === "today" ? "default" : "outline"}
+					variant={
+						timePeriod === "today" ? "default" : "outline"
+					}
 					onClick={() => {
 						setTimePeriod("today");
 						setSelectedYear("");
@@ -405,56 +435,86 @@ export function LeadsTable() {
 					Today
 				</Button>
 				{/* Month Dropdown (enabled if year is selected) */}
-				<Select value={selectedMonth} onValueChange={(value) => {
-					setSelectedMonth(value);
-					setTimePeriod("this_month");
-					setSelectedQuarter("");
-					setSelectedDate(undefined);
-				}} disabled={!selectedYear}>
+				<Select
+					value={selectedMonth}
+					onValueChange={(value) => {
+						setSelectedMonth(value);
+						setTimePeriod("this_month");
+						setSelectedQuarter("");
+						setSelectedDate(undefined);
+					}}
+					disabled={!selectedYear}
+				>
 					<SelectTrigger className="w-[120px]">
 						<SelectValue placeholder="Month" />
 					</SelectTrigger>
 					<SelectContent>
 						{months.map((month) => (
-							<SelectItem key={month.value} value={month.value}>{month.label}</SelectItem>
+							<SelectItem
+								key={month.value}
+								value={month.value}
+							>
+								{month.label}
+							</SelectItem>
 						))}
 					</SelectContent>
 				</Select>
 				{/* Quarter Dropdown (enabled if year is selected) */}
-				<Select value={selectedQuarter} onValueChange={(value) => {
-					setSelectedQuarter(value);
-					setTimePeriod("current_quarter");
-					setSelectedMonth("");
-					setSelectedDate(undefined);
-				}} disabled={!selectedYear || !!selectedMonth}>
+				<Select
+					value={selectedQuarter}
+					onValueChange={(value) => {
+						setSelectedQuarter(value);
+						setTimePeriod("current_quarter");
+						setSelectedMonth("");
+						setSelectedDate(undefined);
+					}}
+					disabled={!selectedYear || !!selectedMonth}
+				>
 					<SelectTrigger className="w-[120px]">
 						<SelectValue placeholder="Quarter" />
 					</SelectTrigger>
 					<SelectContent>
 						{quarters.map((q) => (
-							<SelectItem key={q.value} value={q.value}>{q.label}</SelectItem>
+							<SelectItem
+								key={q.value}
+								value={q.value}
+							>
+								{q.label}
+							</SelectItem>
 						))}
 					</SelectContent>
 				</Select>
 				{/* Year Dropdown */}
-				<Select value={selectedYear} onValueChange={(value) => {
-					setSelectedYear(value);
-					setTimePeriod("this_year");
-					setSelectedMonth("");
-					setSelectedQuarter("");
-					setSelectedDate(undefined);
-				}}>
+				<Select
+					value={selectedYear}
+					onValueChange={(value) => {
+						setSelectedYear(value);
+						setTimePeriod("this_year");
+						setSelectedMonth("");
+						setSelectedQuarter("");
+						setSelectedDate(undefined);
+					}}
+				>
 					<SelectTrigger className="w-[120px]">
 						<SelectValue placeholder="Year" />
 					</SelectTrigger>
 					<SelectContent>
 						{availableYears.map((year) => (
-							<SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+							<SelectItem
+								key={year}
+								value={year.toString()}
+							>
+								{year}
+							</SelectItem>
 						))}
 					</SelectContent>
 				</Select>
 				<Button
-					variant={timePeriod === "cumulative" ? "default" : "outline"}
+					variant={
+						timePeriod === "cumulative"
+							? "default"
+							: "outline"
+					}
 					onClick={() => {
 						setTimePeriod("cumulative");
 						setSelectedYear("");
@@ -476,7 +536,9 @@ export function LeadsTable() {
 								!selectedDate && "text-muted-foreground"
 							)}
 						>
-							{selectedDate ? selectedDate.toLocaleDateString() : "Pick a date"}
+							{selectedDate
+								? selectedDate.toLocaleDateString()
+								: "Pick a date"}
 						</Button>
 					</PopoverTrigger>
 					<PopoverContent className="w-auto p-0">

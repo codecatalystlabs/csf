@@ -150,17 +150,17 @@ export function SatisfactionTrendChart({
 
 	// Transform API data to Recharts format
 	const chartData = useMemo(() => {
-		if (!data) return [];
+		if (!data || !data.labels || !Array.isArray(data.labels)) return [];
 
 		// Generate mock client counts if not provided by API
 		const clientCounts =
-			data.clientCounts ||
-			data.labels.map(() => Math.floor(Math.random() * 500) + 100);
+			data?.clientCounts ||
+			data?.labels?.map(() => Math.floor(Math.random() * 500) + 100);
 
 		return data.labels.map((month, index) => ({
 			month,
-			satisfaction: data.datasets[0]?.data[index] || 0,
-			clientCount: clientCounts[index] || 0,
+			satisfaction: data.datasets?.[0]?.data?.[index] || 0,
+			clientCount: clientCounts?.[index] || 0,
 		}));
 	}, [data]);
 

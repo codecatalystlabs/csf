@@ -74,3 +74,17 @@ export function MetricsCard({
 		</Card>
 	);
 }
+
+
+// PUT
+
+// {
+// 	name: "Total",
+// 	value: 100,
+// 	icon: UserIcon,
+// 	description: "Total number of users",
+// 	trend: "up",
+// 	trendValue: "10%",
+// 	isLoading: false,
+// 	className: "w-full",
+// }

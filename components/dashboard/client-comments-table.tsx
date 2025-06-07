@@ -99,10 +99,10 @@ const months = [
 ];
 
 const quarters = [
-	{ value: "Q1", label: "Q1 (Jan-Mar)" },
-	{ value: "Q2", label: "Q2 (Apr-Jun)" },
-	{ value: "Q3", label: "Q3 (Jul-Sep)" },
-	{ value: "Q4", label: "Q4 (Oct-Dec)" },
+	{ value: "1", label: "Q1 (Jan-Mar)" },
+	{ value: "2", label: "Q2 (Apr-Jun)" },
+	{ value: "3", label: "Q3 (Jul-Sep)" },
+	{ value: "4", label: "Q4 (Oct-Dec)" },
 ];
 
 const generateYears = () => {

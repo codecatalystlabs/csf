@@ -74,12 +74,19 @@ export const DashboardMetrics = forwardRef<
 	const dashboardRef = useRef<HTMLDivElement>(null);
 
 	const dashboardEndpoint = useMemo(() => {
-		const baseUrl = "https://csf.health.go.ug/api/dashboard_data.php";
+		const baseUrl = DASHBOARD_ENDPOINTS.DASHBOARD_VISUALIZATION;
 		const params = new URLSearchParams();
 
 		if (filters?.region) params.append("region", filters.region);
 		if (filters?.district) params.append("district", filters.district);
 		if (filters?.facility) params.append("facility", filters.facility);
+
+		// Add user role parameter
+		if (user?.region) {
+			params.append("role", "region");
+		} else {
+			params.append("role", "national");
+		}
 
 		const timePeriod = filters?.timePeriod || "cumulative";
 		const selectedYear = filters?.selectedYear;
@@ -126,14 +133,18 @@ export const DashboardMetrics = forwardRef<
 		const fullEndpoint = queryString
 			? `${baseUrl}?${queryString}`
 			: baseUrl;
+		console.log("=== DASHBOARD METRICS DEBUG ===");
 		console.log("Constructed Endpoint:", fullEndpoint);
+		console.log("Time Period:", timePeriod);
 		console.log("Selected Values:", {
 			selectedYear,
 			selectedMonth,
 			selectedQuarter,
 			selectedDate,
 		});
-		console.log("Filters:", filters);
+		console.log("Filters object:", filters);
+		console.log("Full URL params:", params.toString());
+		console.log("===========================");
 		return fullEndpoint;
 	}, [filters]);
 
@@ -168,8 +179,7 @@ export const DashboardMetrics = forwardRef<
 		return "bg-red-500";
 	};
 
-	const satisfactionPercentage =
-		periodData?.stats?.overall_satisfaction ?? 0;
+	const satisfactionPercentage = periodData?.overall_satisfaction ?? 0;
 	const satisfactionColor = getSatisfactionColor(satisfactionPercentage);
 
 	const generateReport = useCallback(async () => {
@@ -378,10 +388,7 @@ export const DashboardMetrics = forwardRef<
 						<div className="lg:col-span-3 flex flex-col gap-1.5">
 							<MetricsCard
 								title="Total Clients"
-								value={
-									periodData?.stats?.total_clients ??
-									0
-								}
+								value={periodData?.total_clients ?? 0}
 								icon={Users}
 								isLoading={isLoading}
 								className="h-24 py-1"
@@ -399,10 +406,7 @@ export const DashboardMetrics = forwardRef<
 							/>
 							<MetricsCard
 								title="Male Entries"
-								value={
-									periodData?.stats?.male_entries ??
-									0
-								}
+								value={periodData?.male_entries ?? 0}
 								icon={UserCircle}
 								isLoading={isLoading}
 								className="h-24 py-1"
@@ -457,10 +461,7 @@ export const DashboardMetrics = forwardRef<
 														selectedYear
 													),
 													quarter: Number(
-														selectedQuarter.replace(
-															"Q",
-															""
-														)
+														selectedQuarter
 													),
 											  }
 											: {}),
