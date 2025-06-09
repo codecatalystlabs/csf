@@ -12,7 +12,7 @@ import { useAuth } from "@/app/context/auth-context";
 
 // Define the data structure expected from the API
 interface SatisfactionData {
-	satisfaction_percentage: number;
+	overall_satisfaction: number;
 }
 
 // Create a type for the props
@@ -26,7 +26,7 @@ export function SatisfactionGaugeChart({ filters }: Props) {
 
 	// Build the endpoint URL with filters
 	const endpoint = useMemo(() => {
-		const baseUrl = DASHBOARD_ENDPOINTS.SATISFACTION_TREND;
+		const baseUrl = DASHBOARD_ENDPOINTS.DASHBOARD_VISUALIZATION;
 		const params = new URLSearchParams();
 
 		// If region filter is set, use that first
@@ -114,8 +114,8 @@ export function SatisfactionGaugeChart({ filters }: Props) {
 
 	// Extract the most recent satisfaction value
 	const currentSatisfaction = useMemo(() => {
-		if (!data || !data.satisfaction_percentage) return 0;
-		return Math.round(data.satisfaction_percentage);
+		if (!data || !data.overall_satisfaction) return 0;
+		return Math.round(data.overall_satisfaction);
 	}, [data]);
 
 	// Get sentiment icon based on percentage
