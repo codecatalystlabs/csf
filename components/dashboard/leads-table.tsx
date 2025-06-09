@@ -46,6 +46,7 @@ import { Loader } from "@/components/ui/loader";
 import { BASE_URL } from "@/lib/api-config";
 import { useAuth } from "@/app/context/auth-context";
 import { LocationFilterValues } from "@/components/filters/location-filter";
+import { ExtendedLocationFilterValues } from "@/components/dashboard/filter-bar";
 import { FilterBar } from "@/components/dashboard/filter-bar";
 import {
 	Popover,
@@ -70,7 +71,7 @@ type TimePeriod =
 	| "by_date";
 
 interface ChartProps {
-	filters?: LocationFilterValues;
+	filters?: ExtendedLocationFilterValues;
 	timeFilter?: TimePeriod;
 }
 
@@ -83,10 +84,45 @@ function FacilityLevelBarChart({ filters, timeFilter }: ChartProps) {
 		const baseUrl = `${BASE_URL}/level`;
 		const params = new URLSearchParams();
 
-		// Add time filter parameter
-		if (timeFilter) {
-			params.append("time_filter", timeFilter);
+		// Use filters.timePeriod instead of timeFilter for consistency
+		const timePeriod = filters?.timePeriod || timeFilter || "cumulative";
+		const selectedYear = filters?.selectedYear;
+		const selectedMonth = filters?.selectedMonth;
+		const selectedQuarter = filters?.selectedQuarter;
+		const selectedDate = filters?.selectedDate;
+
+		if (timePeriod === "today") {
+			params.append("time_filter", "today");
+		} else if (timePeriod === "cumulative") {
+			params.append("time_filter", "cumulative");
+		} else if (timePeriod === "by_year") {
+			params.append("time_filter", "by_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+		} else if (timePeriod === "by_month_year") {
+			params.append("time_filter", "by_month_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+			if (selectedMonth) params.append("month", selectedMonth);
+		} else if (timePeriod === "by_quarter_year") {
+			params.append("time_filter", "by_quarter_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+			if (selectedQuarter)
+				params.append("quarter", String(selectedQuarter));
+		} else if (timePeriod === "by_month") {
+			params.append("time_filter", "by_month");
+		} else if (timePeriod === "by_date") {
+			params.append("time_filter", "by_date");
+			if (selectedDate) {
+				params.append(
+					"date_from",
+					selectedDate.toISOString().split("T")[0]
+				);
+				params.append(
+					"date_to",
+					selectedDate.toISOString().split("T")[0]
+				);
+			}
 		} else {
+			// Default to cumulative if no other time period is selected
 			params.append("time_filter", "cumulative");
 		}
 
@@ -143,12 +179,24 @@ function FacilityLevelBarChart({ filters, timeFilter }: ChartProps) {
 			</div>
 		);
 	if (error) return <div className="text-red-500">Failed to load data</div>;
-	if (!data) return null;
+	if (
+		!data ||
+		!data.labels ||
+		!Array.isArray(data.labels) ||
+		!data.data ||
+		!Array.isArray(data.data)
+	) {
+		return (
+			<div className="flex items-center justify-center h-64 text-muted-foreground">
+				No chart data available
+			</div>
+		);
+	}
 
 	// Transform data for recharts
 	const chartData = data.labels.map((label: string, i: number) => ({
 		name: label.replace(/_/g, " "),
-		value: Number(data.data[i]),
+		value: Number(data.data?.[i] || 0),
 	}));
 
 	// Color logic based on satisfaction rate
@@ -265,11 +313,23 @@ function ServiceUnitSatisfactionTable({ filters, timeFilter }: ChartProps) {
 			</div>
 		);
 	if (error) return <div className="text-red-500">Failed to load data</div>;
-	if (!data) return null;
+	if (
+		!data ||
+		!data.labels ||
+		!Array.isArray(data.labels) ||
+		!data.data ||
+		!Array.isArray(data.data)
+	) {
+		return (
+			<div className="flex items-center justify-center h-64 text-muted-foreground">
+				No table data available
+			</div>
+		);
+	}
 
 	const tableData = data.labels.map((label: string, i: number) => ({
 		name: label.replace(/_/g, " "),
-		value: Number(data.data[i]),
+		value: Number(data.data?.[i] || 0),
 	}));
 
 	const getSatisfactionColor = (value: number) => {
@@ -366,7 +426,7 @@ const availableYears = generateYears();
 
 export function LeadsTable() {
 	const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
-	const [filters, setFilters] = useState<LocationFilterValues>({});
+	const [filters, setFilters] = useState<ExtendedLocationFilterValues>({});
 	const [timePeriod, setTimePeriod] = useState<TimePeriod>("this_month");
 	const [selectedMonth, setSelectedMonth] = useState("");
 	const [selectedQuarter, setSelectedQuarter] = useState("");
@@ -376,7 +436,7 @@ export function LeadsTable() {
 	);
 
 	const handleFilterChange = useCallback(
-		(newFilters: LocationFilterValues) => {
+		(newFilters: ExtendedLocationFilterValues) => {
 			console.log("Filter changed in leads table:", newFilters);
 			setFilters(newFilters);
 		},
@@ -416,147 +476,6 @@ export function LeadsTable() {
 				restrictToUserRegion={true}
 				onFilterChange={handleFilterChange}
 			/>
-
-			{/* Time Filters UI */}
-			<div className="flex flex-wrap gap-2 items-center mb-4">
-				<Button
-					variant={
-						timePeriod === "today" ? "default" : "outline"
-					}
-					onClick={() => {
-						setTimePeriod("today");
-						setSelectedYear("");
-						setSelectedMonth("");
-						setSelectedQuarter("");
-						setSelectedDate(undefined);
-					}}
-					size="sm"
-				>
-					Today
-				</Button>
-				{/* Month Dropdown (enabled if year is selected) */}
-				<Select
-					value={selectedMonth}
-					onValueChange={(value) => {
-						setSelectedMonth(value);
-						setTimePeriod("this_month");
-						setSelectedQuarter("");
-						setSelectedDate(undefined);
-					}}
-					disabled={!selectedYear}
-				>
-					<SelectTrigger className="w-[120px]">
-						<SelectValue placeholder="Month" />
-					</SelectTrigger>
-					<SelectContent>
-						{months.map((month) => (
-							<SelectItem
-								key={month.value}
-								value={month.value}
-							>
-								{month.label}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-				{/* Quarter Dropdown (enabled if year is selected) */}
-				<Select
-					value={selectedQuarter}
-					onValueChange={(value) => {
-						setSelectedQuarter(value);
-						setTimePeriod("current_quarter");
-						setSelectedMonth("");
-						setSelectedDate(undefined);
-					}}
-					disabled={!selectedYear || !!selectedMonth}
-				>
-					<SelectTrigger className="w-[120px]">
-						<SelectValue placeholder="Quarter" />
-					</SelectTrigger>
-					<SelectContent>
-						{quarters.map((q) => (
-							<SelectItem
-								key={q.value}
-								value={q.value}
-							>
-								{q.label}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-				{/* Year Dropdown */}
-				<Select
-					value={selectedYear}
-					onValueChange={(value) => {
-						setSelectedYear(value);
-						setTimePeriod("this_year");
-						setSelectedMonth("");
-						setSelectedQuarter("");
-						setSelectedDate(undefined);
-					}}
-				>
-					<SelectTrigger className="w-[120px]">
-						<SelectValue placeholder="Year" />
-					</SelectTrigger>
-					<SelectContent>
-						{availableYears.map((year) => (
-							<SelectItem
-								key={year}
-								value={year.toString()}
-							>
-								{year}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-				<Button
-					variant={
-						timePeriod === "cumulative"
-							? "default"
-							: "outline"
-					}
-					onClick={() => {
-						setTimePeriod("cumulative");
-						setSelectedYear("");
-						setSelectedMonth("");
-						setSelectedQuarter("");
-						setSelectedDate(undefined);
-					}}
-					size="sm"
-				>
-					Cumulative
-				</Button>
-				{/* Calendar for date selection as a popover */}
-				<Popover>
-					<PopoverTrigger asChild>
-						<Button
-							variant="outline"
-							className={cn(
-								"w-[220px] justify-start text-left font-normal",
-								!selectedDate && "text-muted-foreground"
-							)}
-						>
-							{selectedDate
-								? selectedDate.toLocaleDateString()
-								: "Pick a date"}
-						</Button>
-					</PopoverTrigger>
-					<PopoverContent className="w-auto p-0">
-						<Calendar
-							mode="single"
-							selected={selectedDate}
-							onSelect={(date) => {
-								setSelectedDate(date);
-								setTimePeriod("by_date" as TimePeriod);
-								setSelectedYear("");
-								setSelectedMonth("");
-								setSelectedQuarter("");
-							}}
-							className="rounded-md border"
-						/>
-					</PopoverContent>
-				</Popover>
-			</div>
 
 			<div className="space-y-6">
 				<Card>
