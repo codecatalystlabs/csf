@@ -395,12 +395,9 @@ export const DashboardMetrics = forwardRef<
 							/>
 							<MetricsCard
 								title="Satisfied Clients"
-								value={
-									periodData?.stats
-										?.satisfied_clients ?? 0
+								value={periodData?.satisfied_clients ?? 0
 								}
 								icon={Smile}
-								description={`${satisfactionPercentage}% satisfaction rate`}
 								isLoading={isLoading}
 								className="h-24 py-1"
 							/>
@@ -414,8 +411,7 @@ export const DashboardMetrics = forwardRef<
 							<MetricsCard
 								title="Female Entries"
 								value={
-									periodData?.stats
-										?.female_entries ?? 0
+									periodData?.female_entries ?? 0
 								}
 								icon={UserRound}
 								isLoading={isLoading}
@@ -424,19 +420,16 @@ export const DashboardMetrics = forwardRef<
 							<MetricsCard
 								title="Facilities"
 								value={
-									periodData?.stats
-										?.total_facilities ?? 0
+									periodData?.total_facilities ?? 0
 								}
 								icon={AlertTriangle}
 								trend={
-									(periodData?.stats
-										?.total_facilities ?? 0) > 0
+									(periodData?.total_facilities ?? 0) > 0
 										? "up"
 										: "neutral"
 								}
 								trendValue={
-									(periodData?.stats
-										?.total_facilities ?? 0) > 0
+									(periodData?.total_facilities ?? 0) > 0
 										? "Requires attention"
 										: "No issues reported"
 								}
