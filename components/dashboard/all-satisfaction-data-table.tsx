@@ -85,7 +85,7 @@ interface ApiResponse {
 	};
 }
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 50;
 
 interface AllSatisfactionDataTableProps {
 	filters?: ExtendedLocationFilterValues;
@@ -112,7 +112,7 @@ export function AllSatisfactionDataTable({
 
 	const buildEndpoint = useCallback(
 		(page: number) => {
-			const baseUrl = `${BASE_URL}/all_data`;
+			const baseUrl = `/api/all_data`;
 			const params = new URLSearchParams();
 
 			// Add page parameter
@@ -269,6 +269,16 @@ export function AllSatisfactionDataTable({
 		return "bg-red-100 text-red-800";
 	};
 
+	const tableData = Array.isArray(data?.data?.data)
+		? data?.data?.data
+		: Array.isArray(data?.data)
+			? data?.data
+			: [];
+
+	// Determine pagination object safely
+	const pagination = data?.data?.pagination || data?.pagination;
+	const totalRecords = pagination?.total_records || 0;
+
 	return (
 		<div className="space-y-4">
 			<Card>
@@ -287,8 +297,7 @@ export function AllSatisfactionDataTable({
 						<div className="text-center text-red-500">
 							Error loading data. Please try again.
 						</div>
-					) : !data?.data?.data ||
-					  data.data.data.length === 0 ? (
+					) : tableData.length === 0 ? (
 						<div className="text-center text-muted-foreground">
 							No data available for the selected time
 							period
@@ -296,9 +305,8 @@ export function AllSatisfactionDataTable({
 					) : (
 						<div className="space-y-4">
 							<div className="text-sm text-muted-foreground">
-								Showing {data.data.data.length} of{" "}
-								{data.data.pagination.total_records}{" "}
-								records
+								Showing {tableData.length} of{" "}
+								{totalRecords} records
 								{filters?.timePeriod !== "cumulative" &&
 									` for ${filters?.timePeriod?.replace(
 										/_/g,
@@ -334,7 +342,7 @@ export function AllSatisfactionDataTable({
 										</TableRow>
 									</TableHeader>
 									<TableBody>
-										{data.data.data.map(
+										{tableData.map(
 											(item) => (
 												<TableRow
 													key={
@@ -348,18 +356,18 @@ export function AllSatisfactionDataTable({
 													</TableCell>
 													<TableCell className="whitespace-nowrap">
 														<div>
-															{item.facility.replace(
+															{item.facility?.replace(
 																/_/g,
 																" "
 															)}
 														</div>
 														<div className="text-xs text-muted-foreground">
-															{item.district.replace(
+															{item.district?.replace(
 																/_/g,
 																" "
 															)}{" "}
 															|{" "}
-															{item.hlevel.replace(
+															{item.hlevel?.replace(
 																/_/g,
 																" "
 															)}
@@ -441,7 +449,7 @@ export function AllSatisfactionDataTable({
 								</Table>
 							</div>
 
-							{data.data.pagination.total_pages > 1 && (
+							{pagination && pagination.total_pages > 1 && (
 								<div className="flex justify-center mt-4">
 									<Pagination>
 										<PaginationContent>
@@ -514,8 +522,7 @@ export function AllSatisfactionDataTable({
 											</PaginationItem>
 
 											{currentPage <
-												data.data.pagination
-													.total_pages && (
+												pagination.total_pages && (
 												<PaginationItem>
 													<PaginationLink
 														onClick={() =>
@@ -532,14 +539,11 @@ export function AllSatisfactionDataTable({
 											)}
 
 											{currentPage <
-												data.data.pagination
-													.total_pages -
+												pagination.total_pages -
 													1 && (
 												<>
 													{currentPage <
-														data.data
-															.pagination
-															.total_pages -
+														pagination.total_pages -
 															2 && (
 														<PaginationItem>
 															<PaginationEllipsis />
@@ -549,18 +553,12 @@ export function AllSatisfactionDataTable({
 														<PaginationLink
 															onClick={() =>
 																handlePageChange(
-																	data
-																		.data
-																		.pagination
-																		.total_pages
+																	pagination.total_pages
 																)
 															}
 														>
 															{
-																data
-																	.data
-																	.pagination
-																	.total_pages
+																pagination.total_pages
 															}
 														</PaginationLink>
 													</PaginationItem>
@@ -574,10 +572,7 @@ export function AllSatisfactionDataTable({
 													onClick={() =>
 														handlePageChange(
 															Math.min(
-																data
-																	.data
-																	.pagination
-																	.total_pages,
+																pagination.total_pages,
 																currentPage +
 																	1
 															)
@@ -585,9 +580,7 @@ export function AllSatisfactionDataTable({
 													}
 													disabled={
 														currentPage ===
-														data.data
-															.pagination
-															.total_pages
+														pagination.total_pages
 													}
 												>
 													Next

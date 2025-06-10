@@ -430,8 +430,8 @@ export const DashboardMetrics = forwardRef<
 								}
 								trendValue={
 									(periodData?.total_facilities ?? 0) > 0
-										? "Requires attention"
-										: "No issues reported"
+										? ""
+										: ""
 								}
 								isLoading={isLoading}
 								className="h-24 py-0"
@@ -485,7 +485,14 @@ export const DashboardMetrics = forwardRef<
 							/>
 						</div>
 						<div className="lg:col-span-6">
-							<SatisfactionTrendChart filters={filters} />
+							<SatisfactionTrendChart
+								filters={{
+									region: filters?.region,
+									district: filters?.district,
+									facility: filters?.facility,
+									timePeriod: 'last_12_months',
+								}}
+							/>
 						</div>
 					</div>
 				</div>

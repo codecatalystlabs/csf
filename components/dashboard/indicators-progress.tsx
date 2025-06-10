@@ -9,7 +9,7 @@ import { BarChart3 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/app/context/auth-context";
-import { LocationFilterValues } from "@/components/filters/location-filter";
+import { ExtendedLocationFilterValues } from "@/components/dashboard/filter-bar";
 import { Button } from "@/components/ui/button";
 import {
 	Select,
@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
+import { FilterBar } from "./filter-bar";
 
 // Define the indicator data type
 interface IndicatorData {
@@ -51,7 +52,7 @@ const EXCLUDED_INDICATORS = [
 ];
 
 interface IndicatorsProgressProps {
-	filters?: LocationFilterValues;
+	filters?: ExtendedLocationFilterValues;
 }
 
 // Add months, quarters, and availableYears definitions
@@ -86,50 +87,52 @@ const generateYears = () => {
 const availableYears = generateYears();
 
 export function IndicatorsProgress({ filters }: IndicatorsProgressProps) {
-	const [timeframe, setTimeframe] = useState<
-		| "today"
-		| "this_month"
-		| "cumulative"
-		| "by_quarter_year"
-		| "by_date"
-		| "by_year"
-		| "by_month"
-		| "by_month_year"
-	>("today");
-	const [selectedMonth, setSelectedMonth] = useState("");
-	const [selectedQuarter, setSelectedQuarter] = useState("");
-	const [selectedYear, setSelectedYear] = useState("");
-	const [selectedDate, setSelectedDate] = useState<Date | undefined>(
-		undefined
-	);
-
 	// Get user from auth context
 	const { user } = useAuth();
 
-	// Build the endpoint URL with role parameter
+	// Build the endpoint URL with role parameter and time filters from global filters
 	const endpoint = useMemo(() => {
 		const baseUrl = `${BASE_URL}/indicators`;
 		const params = new URLSearchParams();
 
-		// If region filter is set, use that first
-		if (filters?.region) {
-			params.append("region", filters.region);
-		}
-		// Otherwise use user's region if available
-		else if (user?.region) {
-			params.append("region", user.region);
+		if (filters?.region) params.append("region", filters.region);
+		if (filters?.district) params.append("district", filters.district);
+		if (filters?.facility) params.append("facility", filters.facility);
+
+		// Add time filter parameters from filters prop
+		const timePeriod = filters?.timePeriod || "cumulative";
+		const selectedYear = filters?.selectedYear;
+		const selectedMonth = filters?.selectedMonth;
+		const selectedQuarter = filters?.selectedQuarter;
+		const selectedDate = filters?.selectedDate;
+
+		if (timePeriod === "cumulative") {
+			params.append("time_filter", "cumulative");
+		} else if (timePeriod === "today") {
+			params.append("time_filter", "today");
+		} else if (timePeriod === "by_year") {
+			params.append("time_filter", "by_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+		} else if (timePeriod === "by_month_year") {
+			params.append("time_filter", "by_month_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+			if (selectedMonth) params.append("month", selectedMonth);
+		} else if (timePeriod === "by_quarter_year") {
+			params.append("time_filter", "by_quarter_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+			if (selectedQuarter) params.append("quarter", String(selectedQuarter));
+		} else if (timePeriod === "by_month") {
+			params.append("time_filter", "by_month");
+		} else if (timePeriod === "by_date") {
+			params.append("time_filter", "by_date");
+			if (selectedDate) {
+				params.append("date_from", selectedDate.toISOString().split("T")[0]);
+				params.append("date_to", selectedDate.toISOString().split("T")[0]);
+			}
+		} else {
+			params.append("time_filter", "cumulative");
 		}
 
-		// Add district and facility filters if provided
-		if (filters?.district) {
-			params.append("district", filters.district);
-		}
-
-		if (filters?.facility) {
-			params.append("facility", filters.facility);
-		}
-
-		// Set role parameter based on user's region
 		if (user?.region) {
 			params.append("role", "region");
 		} else {
@@ -170,17 +173,23 @@ export function IndicatorsProgress({ filters }: IndicatorsProgressProps) {
 				Failed to load indicators data
 			</div>
 		);
-	if (!data) return null;
+	if (!data || !data.data) return null;
 
-	// Filter out excluded indicators and get data for selected timeframe
+	// Use the correct time filter key for indicator values
+	const timePeriod = filters?.timePeriod || "cumulative";
+
+	// Filter out excluded indicators and get data for selected time period
 	const indicatorItems = Object.entries(data.data)
-		.filter(([name]) => !EXCLUDED_INDICATORS.includes(name)) // Filter out excluded indicators
-		.map(([name, values]) => ({
-			name,
-			value: values[timeframe],
-			color: getProgressColor(values[timeframe]),
-		}))
-		.sort((a, b) => b.value - a.value); // Sort by value descending
+		.filter(([name]) => !EXCLUDED_INDICATORS.includes(name))
+		.map(([name, values]) => {
+			const v = typeof values === "number" ? values : (values as any)[timePeriod] ?? 0;
+			return {
+				name,
+				value: v,
+				color: getProgressColor(v),
+			};
+		})
+		.sort((a, b) => b.value - a.value);
 
 	return (
 		<Card>
@@ -190,31 +199,18 @@ export function IndicatorsProgress({ filters }: IndicatorsProgressProps) {
 				</CardTitle>
 				<BarChart3 className="h-5 w-5 text-muted-foreground" />
 			</CardHeader>
-
 			<CardContent className="space-y-4">
 				<Tabs
 					defaultValue="today"
 					className="w-full"
-					onValueChange={(value) =>
-						setTimeframe(
-							value as
-								| "today"
-								| "this_month"
-								| "cumulative"
-								| "by_quarter_year"
-								| "by_date"
-								| "by_year"
-								| "by_month"
-								| "by_month_year"
-						)
-					}
 				>
 					<TabsList className="grid w-full grid-cols-3">
-						<TabsTrigger value="today">Today</TabsTrigger>
+						{/* <TabsTrigger value="today">Today</TabsTrigger>
 						<TabsTrigger value="by_year">By year</TabsTrigger>
 						<TabsTrigger value="cumulative">
 							Cumulative
-						</TabsTrigger>
+						</TabsTrigger> */}
+						
 					</TabsList>
 				</Tabs>
 

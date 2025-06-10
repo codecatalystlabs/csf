@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import useSWR from "swr";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Loader } from "@/components/ui/loader";
@@ -9,6 +9,11 @@ import { Activity } from "lucide-react";
 import { useAuth } from "@/app/context/auth-context";
 import { LocationFilterValues } from "@/components/filters/location-filter";
 import { ExtendedLocationFilterValues } from "@/components/dashboard/filter-bar";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 
 // Define the service point data type
 interface ServicePointData {
@@ -23,6 +28,39 @@ interface ServicePointResponse {
 interface ServicePointProgressProps {
 	filters?: ExtendedLocationFilterValues;
 }
+
+const months = [
+	{ value: "01", label: "January" },
+	{ value: "02", label: "February" },
+	{ value: "03", label: "March" },
+	{ value: "04", label: "April" },
+	{ value: "05", label: "May" },
+	{ value: "06", label: "June" },
+	{ value: "07", label: "July" },
+	{ value: "08", label: "August" },
+	{ value: "09", label: "September" },
+	{ value: "10", label: "October" },
+	{ value: "11", label: "November" },
+	{ value: "12", label: "December" },
+];
+
+const quarters = [
+	{ value: "1", label: "Q1 (Jan-Mar)" },
+	{ value: "2", label: "Q2 (Apr-Jun)" },
+	{ value: "3", label: "Q3 (Jul-Sep)" },
+	{ value: "4", label: "Q4 (Oct-Dec)" },
+];
+
+const generateYears = () => {
+	const currentYear = new Date().getFullYear();
+	const years = [];
+	for (let year = 2020; year <= currentYear; year++) {
+		years.push(year);
+	}
+	return years;
+};
+
+const availableYears = generateYears();
 
 export function ServicePointProgress({ filters }: ServicePointProgressProps) {
 	const { user } = useAuth();
@@ -57,7 +95,7 @@ export function ServicePointProgress({ filters }: ServicePointProgressProps) {
 			params.append("role", "national");
 		}
 
-		// Add time period filters
+		// Add time period filters from filters prop
 		const timePeriod = filters?.timePeriod || "cumulative";
 		const selectedYear = filters?.selectedYear;
 		const selectedMonth = filters?.selectedMonth;
@@ -78,21 +116,14 @@ export function ServicePointProgress({ filters }: ServicePointProgressProps) {
 		} else if (timePeriod === "by_quarter_year") {
 			params.append("time_filter", "by_quarter_year");
 			if (selectedYear) params.append("year", String(selectedYear));
-			if (selectedQuarter)
-				params.append("quarter", String(selectedQuarter));
+			if (selectedQuarter) params.append("quarter", String(selectedQuarter));
 		} else if (timePeriod === "by_month") {
 			params.append("time_filter", "by_month");
 		} else if (timePeriod === "by_date") {
 			params.append("time_filter", "by_date");
 			if (selectedDate) {
-				params.append(
-					"date_from",
-					selectedDate.toISOString().split("T")[0]
-				);
-				params.append(
-					"date_to",
-					selectedDate.toISOString().split("T")[0]
-				);
+				params.append("date_from", selectedDate.toISOString().split("T")[0]);
+				params.append("date_to", selectedDate.toISOString().split("T")[0]);
 			}
 		} else {
 			// Default to cumulative if no other time period is selected

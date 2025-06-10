@@ -20,6 +20,15 @@ interface Props {
 	filters?: ExtendedLocationFilterValues;
 }
 
+// Helper to get arc endpoint
+function getArcEndpoint(cx: number, cy: number, r: number, angle: number) {
+	const rad = (Math.PI / 180) * angle;
+	return {
+		x: cx + r * Math.cos(rad),
+		y: cy + r * Math.sin(rad),
+	};
+}
+
 export function SatisfactionGaugeChart({ filters }: Props) {
 	// Get user from auth context
 	const { user } = useAuth();
@@ -138,6 +147,13 @@ export function SatisfactionGaugeChart({ filters }: Props) {
 		return (percentage / 100) * 180 - 90;
 	};
 
+	// Define color thresholds for the gauge
+	const getGaugeColor = (percentage: number) => {
+		if (percentage < 50) return "#ef4444"; // Red
+		if (percentage < 80) return "#f59e0b"; // Yellow
+		return "#10b981"; // Green
+	};
+
 	// Handle loading state
 	if (isLoading) {
 		return (
@@ -195,170 +211,79 @@ export function SatisfactionGaugeChart({ filters }: Props) {
 	return (
 		<Card>
 			<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-				<CardTitle className="text-sm font-medium">
-					Overall Satisfaction
+				<CardTitle className="text-lg font-medium">
+					Overall Client Satisfaction
 				</CardTitle>
-				<Gauge className="h-4 w-4 text-muted-foreground" />
+				<Gauge className="h-5 w-5 text-muted-foreground" />
 			</CardHeader>
 			<CardContent>
-				<div className="flex flex-col items-center">
-					{/* Improved SVG Gauge */}
-					<div className="relative w-[300px] h-[200px]">
-						<svg
-							width="300"
-							height="200"
-							viewBox="0 0 300 200"
-						>
-							{/* Background track */}
-							<path
-								d="M 50,150 A 100,100 0 0,1 250,150"
-								fill="none"
-								stroke="#e5e7eb"
-								strokeWidth="32"
-								strokeLinecap="round"
-							/>
-
-							{/* Three distinct color arcs */}
-							{/* Red arc: 0-50% */}
-							<path
-								d="M 50,150 A 100,100 0 0,1 150,50"
-								fill="none"
-								stroke="rgb(239, 68, 68)"
-								strokeWidth="60"
-								strokeLinecap="square"
-							/>
-
-							{/* Yellow arc: 50-100% (background for green) */}
-							<path
-								d="M 150,50 A 100,100 0 0,1 250,150"
-								fill="none"
-								stroke="rgb(253, 224, 71)"
-								strokeWidth="60"
-								strokeLinecap="square"
-							/>
-
-							{/* Green arc: 80-100% (overlay) */}
-							<path
-								d="M 208.78,69.10 A 100,100 0 0,1 250,150"
-								fill="none"
-								stroke="rgb(34, 197, 94)"
-								strokeWidth="60"
-								strokeLinecap="square"
-							/>
-
-							{/* Gauge labels with background circles */}
-							{/* 0% label */}
-							<text
-								x="50"
-								y="175"
-								textAnchor="middle"
-								fontSize="12"
-								fill="currentColor"
-							>
-								0%
-							</text>
-
-							{/* 50% label - STRONGER YELLOW */}
-							<text
-								x="150"
-								y="30"
-								textAnchor="middle"
-								fontSize="12"
-								fill="currentColor"
-							>
-								50%
-							</text>
-
-							{/* 100% label */}
-							<text
-								x="250"
-								y="175"
-								textAnchor="middle"
-								fontSize="12"
-								fill="currentColor"
-							>
-								100%
-							</text>
-
-							{/* Needle */}
-							<g
-								transform={`rotate(${getNeedleRotation(
-									currentSatisfaction
-								)}, 150, 150)`}
-							>
+				<div className="flex flex-col items-center justify-center" style={{ minHeight: 300 }}>
+					{/* Gauge Chart */}
+					<div className="w-full flex items-center justify-center" style={{ minHeight: 180 }}>
+						<div className="relative w-[400px] h-[240px]">
+							<svg viewBox="0 0 200 120" className="w-full h-full">
+								{/* Red arc: 0-50% */}
+								<path
+									d="M 20,100 A 80,80 0 0,1 100,20"
+									fill="none"
+									stroke="#ef4444"
+									strokeWidth="24"
+									strokeLinecap="butt"
+								/>
+								{/* Yellow arc: 50-80% */}
+								<path
+									d="M 100,20 A 80,80 0 0,1 163.2,60.96"
+									fill="none"
+									stroke="#facc15"
+									strokeWidth="24"
+									strokeLinecap="butt"
+								/>
+								{/* Green arc: 80-100% */}
+								<path
+									d="M 163.2,60.96 A 80,80 0 0,1 180,100"
+									fill="none"
+									stroke="#22c55e"
+									strokeWidth="24"
+									strokeLinecap="butt"
+								/>
+								{/* Needle */}
 								<line
-									x1="150"
-									y1="150"
-									x2="150"
-									y2="70"
-									stroke="black"
-									strokeWidth="3"
+									x1="100"
+									y1="100"
+									x2={100 + 70 * Math.cos(((getNeedleRotation(currentSatisfaction) - 90) * Math.PI) / 180)}
+									y2={100 + 70 * Math.sin(((getNeedleRotation(currentSatisfaction) - 90) * Math.PI) / 180)}
+									stroke="#222"
+									strokeWidth="4"
 								/>
-								<circle
-									cx="150"
-									cy="150"
-									r="10"
-									fill="black"
-									stroke="white"
-									strokeWidth="2"
-								/>
-							</g>
-
-							{/* Current value */}
-							<text
-								x="150"
-								y="120"
-								textAnchor="middle"
-								fontSize="24"
-								fontWeight="bold"
-								fill="currentColor"
-							>
-								{currentSatisfaction}%
-							</text>
-						</svg>
-					</div>
-
-					<div className="text-center mb-2 mt-2">
-						{/* Satisfaction rating and emoji */}
-						<div className="text-xl font-medium">
-							{getSatisfactionLevel(currentSatisfaction)}
-						</div>
-						{/* Emoji indicator */}
-						<div className="text-5xl mb-2">
-							{getSentimentIcon(currentSatisfaction)}
-						</div>
-					</div>
-
-					{/* Satisfaction key */}
-					<div className="mt-4 w-full pt-4 border-t">
-						<div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-8 text-sm">
-							<span className="font-semibold">
-								Satisfaction Key:
-							</span>
-							<div className="flex flex-wrap justify-center gap-4">
-								<div className="flex items-center gap-1">
-									<div className="w-4 h-4 rounded-full bg-green-500"></div>
-									<span>Satisfied</span>
-									<span className="text-xs text-gray-500">
-										(80-100%)
-									</span>
-								</div>
-								<div className="flex items-center gap-1">
-									{/* STRONGER YELLOW */}
-									<div className="w-4 h-4 rounded-full bg-yellow-200"></div>
-									<span>Neutral</span>
-									<span className="text-xs text-gray-500">
-										(50-80%)
-									</span>
-								</div>
-								<div className="flex items-center gap-1">
-									<div className="w-4 h-4 rounded-full bg-red-500"></div>
-									<span>Dissatisfied</span>
-									<span className="text-xs text-gray-500">
-										(0-50%)
-									</span>
-								</div>
+								{/* Center circle */}
+								<circle cx="100" cy="100" r="18" fill="#fff" stroke="#222" strokeWidth="3" />
+								{/* Labels */}
+								<text x="20" y="115" fontSize="16" fill="#222" textAnchor="middle">0%</text>
+								<text x="100" y="28" fontSize="16" fill="#222" textAnchor="middle">50%</text>
+								<text x="180" y="115" fontSize="16" fill="#222" textAnchor="middle">100%</text>
+								{/* Emoji at the pivot */}
+								<text x="100" y="108" fontSize="38" textAnchor="middle" dominantBaseline="middle">{getSentimentIcon(currentSatisfaction)}</text>
+								{/* Percentage just above the emoji */}
+								<text x="100" y="80" fontSize="32" fontWeight="bold" textAnchor="middle" fill="#222">{currentSatisfaction}%</text>
+							</svg>
+							<div className="flex flex-col items-center justify-center pointer-events-none">
+								<p className="text-base text-muted-foreground mt-2">{getSatisfactionLevel(currentSatisfaction)}</p>
 							</div>
+						</div>
+					</div>
+					{/* Legend/Key below the chart */}
+					<div className="flex justify-center gap-6 text-sm mt-8">
+						<div className="flex items-center gap-2">
+							<div className="w-4 h-4 bg-green-500 rounded"></div>
+							<span>High (≥80%)</span>
+						</div>
+						<div className="flex items-center gap-2">
+							<div className="w-4 h-4 bg-yellow-500 rounded"></div>
+							<span>Medium (50-79%)</span>
+						</div>
+						<div className="flex items-center gap-2">
+							<div className="w-4 h-4 bg-red-500 rounded"></div>
+							<span>Low (&lt;50%)</span>
 						</div>
 					</div>
 				</div>

@@ -194,10 +194,18 @@ function FacilityLevelBarChart({ filters, timeFilter }: ChartProps) {
 	}
 
 	// Transform data for recharts
-	const chartData = data.labels.map((label: string, i: number) => ({
-		name: label.replace(/_/g, " "),
-		value: Number(data.data?.[i] || 0),
-	}));
+	let chartData = [];
+	if (data.labels && Array.isArray(data.labels) && data.data && Array.isArray(data.data)) {
+		chartData = data.labels.map((label: string, i: number) => ({
+			name: label.replace(/_/g, " "),
+			value: Number(data.data?.[i] || 0),
+		}));
+	} else if (data && typeof data.data === 'object' && !Array.isArray(data.data)) {
+		chartData = Object.entries(data.data).map(([label, value]) => ({
+			name: label.replace(/_/g, " "),
+			value: Number(value || 0),
+		}));
+	}
 
 	// Color logic based on satisfaction rate
 	const getSatisfactionColor = (value: number) => {
@@ -255,17 +263,9 @@ function FacilityLevelBarChart({ filters, timeFilter }: ChartProps) {
 					isAnimationActive={true}
 					animationDuration={800}
 				>
-					{chartData.map(
-						(
-							entry: { name: string; value: number },
-							idx: number
-						) => (
-							<Cell
-								key={`cell-${idx}`}
-								fill={getSatisfactionColor(entry.value)}
-							/>
-						)
-					)}
+					{chartData.map((entry, idx) => (
+						<Cell key={`cell-${idx}`} fill={getSatisfactionColor(entry.value)} />
+					))}
 				</Bar>
 			</BarChart>
 		</ResponsiveContainer>
@@ -279,27 +279,52 @@ function ServiceUnitSatisfactionTable({ filters, timeFilter }: ChartProps) {
 		const baseUrl = `${BASE_URL}/service_point`;
 		const params = new URLSearchParams();
 
-		if (timeFilter) {
-			params.append("time_filter", timeFilter);
+		// Add time filter parameters
+		const timePeriod = filters?.timePeriod || timeFilter || "cumulative";
+		const selectedYear = filters?.selectedYear;
+		const selectedMonth = filters?.selectedMonth;
+		const selectedQuarter = filters?.selectedQuarter;
+		const selectedDate = filters?.selectedDate;
+
+		if (timePeriod === "today") {
+			params.append("time_filter", "today");
+		} else if (timePeriod === "cumulative") {
+			params.append("time_filter", "cumulative");
+		} else if (timePeriod === "by_year") {
+			params.append("time_filter", "by_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+		} else if (timePeriod === "by_month_year") {
+			params.append("time_filter", "by_month_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+			if (selectedMonth) params.append("month", selectedMonth);
+		} else if (timePeriod === "by_quarter_year") {
+			params.append("time_filter", "by_quarter_year");
+			if (selectedYear) params.append("year", String(selectedYear));
+			if (selectedQuarter) params.append("quarter", String(selectedQuarter));
+		} else if (timePeriod === "by_month") {
+			params.append("time_filter", "by_month");
+		} else if (timePeriod === "by_date") {
+			params.append("time_filter", "by_date");
+			if (selectedDate) {
+				params.append("date_from", selectedDate.toISOString().split("T")[0]);
+				params.append("date_to", selectedDate.toISOString().split("T")[0]);
+			}
 		} else {
 			params.append("time_filter", "cumulative");
 		}
-		if (filters?.region) {
-			params.append("region", filters.region);
-		} else if (user?.region) {
-			params.append("region", user.region);
-		}
-		if (filters?.district) {
-			params.append("district", filters.district);
-		}
-		if (filters?.facility) {
-			params.append("facility", filters.facility);
-		}
+
+		// Add location filters
+		if (filters?.region) params.append("region", filters.region);
+		if (filters?.district) params.append("district", filters.district);
+		if (filters?.facility) params.append("facility", filters.facility);
+
+		// Set role parameter based on user's region
 		if (user?.region) {
 			params.append("role", "region");
 		} else {
 			params.append("role", "national");
 		}
+
 		const queryString = params.toString();
 		return queryString ? `${baseUrl}?${queryString}` : baseUrl;
 	}, [filters, user?.region, timeFilter]);
@@ -315,9 +340,6 @@ function ServiceUnitSatisfactionTable({ filters, timeFilter }: ChartProps) {
 	if (error) return <div className="text-red-500">Failed to load data</div>;
 	if (
 		!data ||
-		!data.labels ||
-		!Array.isArray(data.labels) ||
-		!data.data ||
 		!Array.isArray(data.data)
 	) {
 		return (
@@ -327,10 +349,14 @@ function ServiceUnitSatisfactionTable({ filters, timeFilter }: ChartProps) {
 		);
 	}
 
-	const tableData = data.labels.map((label: string, i: number) => ({
-		name: label.replace(/_/g, " "),
-		value: Number(data.data?.[i] || 0),
-	}));
+	console.log("Service Point Table API data:", data);
+
+	const tableData = data.data
+		.filter((item: any) => !!item.servicepoint)
+		.map((item: any) => ({
+			name: (item.servicepoint || "").replace(/_/g, " "),
+			value: Number(item.percentage || 0),
+		}));
 
 	const getSatisfactionColor = (value: number) => {
 		if (value >= 80) return "text-green-600";
@@ -478,7 +504,7 @@ export function LeadsTable() {
 			/>
 
 			<div className="space-y-6">
-				<Card>
+				{/* <Card>
 					<CardHeader>
 						<CardTitle>
 							Satisfaction rate by health facility level
@@ -490,7 +516,7 @@ export function LeadsTable() {
 							timeFilter={timePeriod}
 						/>
 					</CardContent>
-				</Card>
+				</Card> */}
 				<Card>
 					<CardHeader>
 						<CardTitle>
@@ -498,8 +524,117 @@ export function LeadsTable() {
 						</CardTitle>
 					</CardHeader>
 					<CardContent>
+						{/* Time Filters UI for Service Point Table */}
+						<div className="flex flex-wrap gap-2 items-center mb-4">
+							<Button
+								variant={timePeriod === "today" ? "default" : "outline"}
+								onClick={() => {
+									setTimePeriod("today");
+									setSelectedYear("");
+									setSelectedMonth("");
+									setSelectedQuarter("");
+									setSelectedDate(undefined);
+								}}
+								size="sm"
+							>
+								Today
+							</Button>
+							<Select value={selectedMonth} onValueChange={(value) => {
+								setSelectedMonth(value);
+								setTimePeriod("by_month_year");
+								setSelectedQuarter("");
+								setSelectedDate(undefined);
+							}} disabled={!selectedYear}>
+								<SelectTrigger className="w-[120px]">
+									<SelectValue placeholder="Month" />
+								</SelectTrigger>
+								<SelectContent>
+									{months.map((month) => (
+										<SelectItem key={month.value} value={month.value}>{month.label}</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							<Select value={selectedQuarter} onValueChange={(value) => {
+								setSelectedQuarter(value);
+								setTimePeriod("by_quarter_year");
+								setSelectedMonth("");
+								setSelectedDate(undefined);
+							}} disabled={!selectedYear || !!selectedMonth}>
+								<SelectTrigger className="w-[120px]">
+									<SelectValue placeholder="Quarter" />
+								</SelectTrigger>
+								<SelectContent>
+									{quarters.map((q) => (
+										<SelectItem key={q.value} value={q.value}>{q.label}</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							<Select value={selectedYear} onValueChange={(value) => {
+								setSelectedYear(value);
+								setTimePeriod("by_year");
+								setSelectedMonth("");
+								setSelectedQuarter("");
+								setSelectedDate(undefined);
+							}}>
+								<SelectTrigger className="w-[120px]">
+									<SelectValue placeholder="Year" />
+								</SelectTrigger>
+								<SelectContent>
+									{availableYears.map((year) => (
+										<SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							<Button
+								variant={timePeriod === "cumulative" ? "default" : "outline"}
+								onClick={() => {
+									setTimePeriod("cumulative");
+									setSelectedYear("");
+									setSelectedMonth("");
+									setSelectedQuarter("");
+									setSelectedDate(undefined);
+								}}
+								size="sm"
+							>
+								Cumulative
+							</Button>
+							<Popover>
+								<PopoverTrigger asChild>
+									<Button
+										variant="outline"
+										className={cn(
+											"w-[220px] justify-start text-left font-normal",
+											!selectedDate && "text-muted-foreground"
+										)}
+									>
+										{selectedDate ? selectedDate.toLocaleDateString() : "Pick a date"}
+									</Button>
+								</PopoverTrigger>
+								<PopoverContent className="w-auto p-0">
+									<Calendar
+										mode="single"
+										selected={selectedDate}
+										onSelect={(date) => {
+											setSelectedDate(date);
+											setTimePeriod("by_date");
+											setSelectedYear("");
+											setSelectedMonth("");
+											setSelectedQuarter("");
+										}}
+										className="rounded-md border"
+									/>
+								</PopoverContent>
+							</Popover>
+						</div>
 						<ServiceUnitSatisfactionTable
-							filters={filters}
+							filters={{
+								...filters,
+								timePeriod,
+								selectedYear,
+								selectedMonth,
+								selectedQuarter,
+								selectedDate,
+							}}
 							timeFilter={timePeriod}
 						/>
 					</CardContent>

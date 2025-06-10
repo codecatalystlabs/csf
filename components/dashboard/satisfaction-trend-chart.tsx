@@ -24,14 +24,53 @@ import { ExtendedLocationFilterValues } from "@/components/dashboard/filter-bar"
 import { TrendingUp } from "lucide-react";
 import { useAuth } from "@/app/context/auth-context";
 
-// Define the data structure expected from the API
+// Extend the SatisfactionTrendData interface for new API format
+interface SatisfactionTrendDataset {
+	label: string;
+	data: number[];
+}
+
 interface SatisfactionTrendData {
-	labels: string[];
-	datasets: {
-		label: string;
-		data: number[];
-	}[];
-	clientCounts?: number[]; // Client count per month (denominator)
+	status: string;
+	filters_applied: {
+		region: string | null;
+		district: string | null;
+		facility: string | null;
+	};
+	data: {
+		summary: {
+			today: {
+				total_clients: number;
+				satisfied_clients: number;
+				satisfaction_percentage: number;
+			};
+			cumulative: {
+				total_clients: number;
+				satisfied_clients: number;
+				satisfaction_percentage: number;
+			};
+		};
+		trends: {
+			by_month_year: {
+				labels: string[];
+				data: number[];
+			};
+			by_year: {
+				labels: string[];
+				data: number[];
+			};
+			by_month: {
+				labels: string[];
+				data: number[];
+			};
+			by_date: {
+				labels: string[];
+				data: number[];
+			};
+		};
+	};
+	labels?: string[];
+	datasets?: SatisfactionTrendDataset[];
 }
 
 // Create a type for the props
@@ -42,19 +81,19 @@ interface SatisfactionTrendChartProps {
 // Custom tooltip component
 const CustomTooltip = ({ active, payload, label }: TooltipProps<any, any>) => {
 	if (active && payload && payload.length) {
-		const satisfactionRate = payload[0].value;
-		const clientCount = payload[1]?.value || 0;
+		const clientCount = payload[0].value;
+		const satisfactionRate = payload[1]?.value || 0;
 
 		return (
 			<div className="bg-white p-3 border border-gray-200 rounded-md shadow-sm">
 				<p className="font-medium text-sm">{label}</p>
 				<p className="text-sm text-blue-500">
-					<span className="font-medium">Satisfaction Rate:</span>{" "}
-					{satisfactionRate}%
+					<span className="font-medium">Client Count:</span>{' '}
+					{clientCount}
 				</p>
 				<p className="text-sm text-gray-600">
-					<span className="font-medium">Client Count:</span>{" "}
-					{clientCount}
+					<span className="font-medium">Satisfaction Rate:</span>{' '}
+					{satisfactionRate}%
 				</p>
 				<p className="text-xs text-gray-500 mt-1 border-t pt-1">
 					Based on feedback from {clientCount} clients
@@ -62,8 +101,14 @@ const CustomTooltip = ({ active, payload, label }: TooltipProps<any, any>) => {
 			</div>
 		);
 	}
-
 	return null;
+};
+
+// Add a function to get the bar color based on satisfaction value
+const getBarColor = (value: number) => {
+	if (value <= 50) return '#ef4444'; // red
+	if (value <= 80) return '#facc15'; // yellow
+	return '#22c55e'; // green
 };
 
 export function SatisfactionTrendChart({
@@ -74,15 +119,13 @@ export function SatisfactionTrendChart({
 
 	// Build the endpoint URL with filters
 	const endpoint = useMemo(() => {
-		const baseUrl = DASHBOARD_ENDPOINTS.SATISFACTION_TREND;
+		const baseUrl = 'https://csf.health.go.ug/api/satisfaction_trends';
 		const params = new URLSearchParams();
 
 		// If region filter is set, use that first
 		if (filters?.region) {
 			params.append("region", filters.region);
-		}
-		// Otherwise use user's region if available
-		else if (user?.region) {
+		} else if (user?.region) {
 			params.append("region", user.region);
 		}
 
@@ -96,8 +139,8 @@ export function SatisfactionTrendChart({
 			params.append("role", "national");
 		}
 
-		// Add time period filters
-		const timePeriod = filters?.timePeriod || "cumulative";
+		// Only append time filter if explicitly selected
+		let timePeriod = filters?.timePeriod;
 		const selectedYear = filters?.selectedYear;
 		const selectedMonth = filters?.selectedMonth;
 		const selectedQuarter = filters?.selectedQuarter;
@@ -117,8 +160,7 @@ export function SatisfactionTrendChart({
 		} else if (timePeriod === "by_quarter_year") {
 			params.append("time_filter", "by_quarter_year");
 			if (selectedYear) params.append("year", String(selectedYear));
-			if (selectedQuarter)
-				params.append("quarter", String(selectedQuarter));
+			if (selectedQuarter) params.append("quarter", String(selectedQuarter));
 		} else if (timePeriod === "by_month") {
 			params.append("time_filter", "by_month");
 		} else if (timePeriod === "by_date") {
@@ -133,10 +175,8 @@ export function SatisfactionTrendChart({
 					selectedDate.toISOString().split("T")[0]
 				);
 			}
-		} else {
-			// Default to cumulative if no other time period is selected
-			params.append("time_filter", "cumulative");
 		}
+		// Do NOT append time_filter=last_12_months by default
 
 		const queryString = params.toString();
 		return queryString ? `${baseUrl}?${queryString}` : baseUrl;
@@ -148,27 +188,52 @@ export function SatisfactionTrendChart({
 		authFetcher
 	);
 
+	// Debug: Log the API data to the console
+	if (typeof window !== 'undefined') {
+		console.log('SatisfactionTrendChart API endpoint:', endpoint);
+		console.log('SatisfactionTrendChart API data:', data);
+	}
+
 	// Transform API data to Recharts format
 	const chartData = useMemo(() => {
-		if (!data || !data.labels || !Array.isArray(data.labels)) return [];
+		if (!data) return [];
 
-		// Generate mock client counts if not provided by API
-		const clientCounts =
-			data?.clientCounts ||
-			data?.labels?.map(() => Math.floor(Math.random() * 500) + 100);
+		// Handle new format: { labels: [], datasets: [{ label, data: [] }, ...] }
+		if (Array.isArray(data.labels) && Array.isArray(data.datasets)) {
+			// Find the correct datasets
+			const satisfactionDataset = data.datasets.find((ds: SatisfactionTrendDataset) => ds.label.toLowerCase().includes('satisfaction'));
+			const clientCountDataset = data.datasets.find((ds: SatisfactionTrendDataset) => ds.label.toLowerCase().includes('client'));
+			return data.labels.map((label: string, idx: number) => ({
+				month: label,
+				satisfaction: satisfactionDataset ? satisfactionDataset.data[idx] : null,
+				clientCount: clientCountDataset ? clientCountDataset.data[idx] : null,
+			}));
+		}
 
-		return data.labels.map((month, index) => ({
-			month,
-			satisfaction: data.datasets?.[0]?.data?.[index] || 0,
-			clientCount: clientCounts?.[index] || 0,
-		}));
+		// Fallback for other formats (if any)
+		return [];
 	}, [data]);
 
 	// Calculate max client count for right y-axis scaling
 	const maxClientCount = useMemo(() => {
 		if (!chartData.length) return 1000;
-		return Math.max(...chartData.map((item) => item.clientCount)) * 1.2;
+		// Filter out nulls before Math.max
+		const clientCounts = chartData.map((item) => item.clientCount).filter((v): v is number => typeof v === 'number');
+		if (!clientCounts.length) return 1000;
+		return Math.max(...clientCounts) * 1.2;
 	}, [chartData]);
+
+	// Format month labels (e.g., '2024-07' to 'Jul 2024')
+	const formatMonth = (monthStr: string) => {
+		if (!monthStr) return "";
+		const [year, month] = monthStr.split("-");
+		const monthNames = [
+			"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+			"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+		];
+		if (!month || !year) return monthStr;
+		return `${monthNames[parseInt(month, 10) - 1]} ${year}`;
+	};
 
 	// Handle loading state
 	if (isLoading) {
@@ -233,23 +298,12 @@ export function SatisfactionTrendChart({
 			</CardHeader>
 			<CardContent>
 				<div className="h-[350px]">
-					<ResponsiveContainer
-						width="100%"
-						height="100%"
-					>
+					<ResponsiveContainer width="100%" height="100%">
 						<ComposedChart
 							data={chartData}
-							margin={{
-								top: 10,
-								right: 30,
-								left: 20,
-								bottom: 50,
-							}}
+							margin={{ top: 10, right: 30, left: 20, bottom: 50 }}
 						>
-							<CartesianGrid
-								strokeDasharray="3 3"
-								opacity={0.3}
-							/>
+							<CartesianGrid strokeDasharray="3 3" opacity={0.3} />
 							<XAxis
 								dataKey="month"
 								stroke="#888888"
@@ -295,46 +349,25 @@ export function SatisfactionTrendChart({
 									},
 								}}
 							/>
-							<Tooltip content={<CustomTooltip />} />
-							<Legend
-								verticalAlign="top"
-								height={36}
+							<Tooltip />
+							<Legend verticalAlign="top" height={36} />
+							<Bar
+								yAxisId="left"
+								dataKey="satisfaction"
+								name="Satisfaction Rate (%)"
+								barSize={20}
+								fill="#0ea5e9"
 							/>
 							<Line
-								yAxisId="left"
-								type="monotone"
-								dataKey="satisfaction"
-								stroke="#0ea5e9"
-								strokeWidth={3}
-								dot={{
-									r: 5,
-									fill: "#0ea5e9",
-									strokeWidth: 1,
-								}}
-								activeDot={{ r: 7 }}
-								name="Satisfaction Rate (%)"
-							/>
-							<Bar
 								yAxisId="right"
+								type="monotone"
 								dataKey="clientCount"
+								stroke="#eab308"
+								strokeWidth={3}
+								dot={false}
+								activeDot={{ r: 7 }}
 								name="Client Count"
-								barSize={20}
-							>
-								{chartData.map((entry, index) => {
-									let color;
-									if (entry.satisfaction < 50)
-										color = "#ef4444"; // red
-									else if (entry.satisfaction < 80)
-										color = "#fde047"; // yellow
-									else color = "#22c55e"; // green
-									return (
-										<Cell
-											key={`cell-${index}`}
-											fill={color}
-										/>
-									);
-								})}
-							</Bar>
+							/>
 						</ComposedChart>
 					</ResponsiveContainer>
 				</div>
