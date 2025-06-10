@@ -84,12 +84,10 @@ export function DashboardOverview() {
 
 	const extendedFilters = {
 		...filters,
-		timePeriod: filters.timePeriod || "cumulative",
-		selectedYear: filters.selectedYear,
-		selectedMonth: filters.selectedMonth,
-		selectedQuarter: filters.selectedQuarter,
-		selectedDate: filters.selectedDate,
 	};
+	if (!filters.timePeriod && !filters.selectedYear && !filters.selectedMonth && !filters.selectedQuarter && !filters.selectedDate) {
+		extendedFilters.timePeriod = 'cumulative';
+	}
 
 	return (
 		<div className="flex flex-col gap-4">

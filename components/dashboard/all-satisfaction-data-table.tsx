@@ -112,7 +112,7 @@ export function AllSatisfactionDataTable({
 
 	const buildEndpoint = useCallback(
 		(page: number) => {
-			const baseUrl = `/api/all_data`;
+			const baseUrl = 'https://csf.health.go.ug/api/all_data';
 			const params = new URLSearchParams();
 
 			// Add page parameter
@@ -276,7 +276,7 @@ export function AllSatisfactionDataTable({
 			: [];
 
 	// Determine pagination object safely
-	const pagination = data?.data?.pagination || data?.pagination;
+	const pagination = data?.data && 'pagination' in data.data ? data.data.pagination : undefined;
 	const totalRecords = pagination?.total_records || 0;
 
 	return (

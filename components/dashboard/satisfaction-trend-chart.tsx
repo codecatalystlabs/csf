@@ -139,14 +139,16 @@ export function SatisfactionTrendChart({
 			params.append("role", "national");
 		}
 
-		// Only append time filter if explicitly selected
+		// Only append time filter if explicitly selected, otherwise default to last_12_months
 		let timePeriod = filters?.timePeriod;
 		const selectedYear = filters?.selectedYear;
 		const selectedMonth = filters?.selectedMonth;
 		const selectedQuarter = filters?.selectedQuarter;
 		const selectedDate = filters?.selectedDate;
 
-		if (timePeriod === "today") {
+		if (!timePeriod) {
+			params.append("time_filter", "last_12_months");
+		} else if (timePeriod === "today") {
 			params.append("time_filter", "today");
 		} else if (timePeriod === "cumulative") {
 			params.append("time_filter", "cumulative");
@@ -176,7 +178,6 @@ export function SatisfactionTrendChart({
 				);
 			}
 		}
-		// Do NOT append time_filter=last_12_months by default
 
 		const queryString = params.toString();
 		return queryString ? `${baseUrl}?${queryString}` : baseUrl;
@@ -356,8 +357,11 @@ export function SatisfactionTrendChart({
 								dataKey="satisfaction"
 								name="Satisfaction Rate (%)"
 								barSize={20}
-								fill="#0ea5e9"
-							/>
+							>
+								{chartData.map((entry, idx) => (
+									<Cell key={`cell-${idx}`} fill={getBarColor(entry.satisfaction ?? 0)} />
+								))}
+							</Bar>
 							<Line
 								yAxisId="right"
 								type="monotone"
